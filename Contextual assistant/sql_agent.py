@@ -39,5 +39,35 @@ class SQLAgent:
         self.db_path = db_path or os.getenv("DB_PATH_sql", r"C:\Users\mathew\Desktop\Capstone\Datasets\Capstone_data_sql.duckdb")
         self.conn = duckdb.connect(self.db_path)
         # Placeholder for LLM and app - will be implemented by other team members
-        self.llm = None
+        self.llm = self.get_llm(llm_provider)
         self.app = None
+        
+    def get_llm(self, provider: str = None):
+        """Initializes and returns an LLM instance based on the specified provider."""
+        provider = provider or os.getenv("LLM_PROVIDER", "gemini").lower()
+
+        if provider == "gemini":
+            return ChatGoogleGenerativeAI(
+                model=os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash"),
+                google_api_key=os.getenv("GEMINI_KEY")
+            )
+        elif provider == "perplexity":
+            return ChatOpenAI(
+                model=os.getenv("PPLX_MODEL", "sonar-pro"),
+                api_key=os.getenv("PERPLEXITY_API_KEY"),
+                base_url=os.getenv("PPLX_BASE_URL", "https://api.perplexity.ai/chat/completions")
+            )
+        elif provider == "huggingface":
+            return HuggingFaceHub(
+                repo_id=os.getenv("HF_MODEL", "meta-llama/Llama-3-8b-chat-hf"),
+                huggingfacehub_api_token=os.getenv("HF_TOKEN")
+            )
+        elif provider == "local-hf":
+            pipe = pipeline(
+                "text-generation",
+                model=os.getenv("LOCAL_HF_MODEL", "meta-llama/Llama-3-8b-chat-hf"),
+                device_map="auto"
+            )
+            return ChatHuggingFace(pipeline=pipe)
+        else:
+            raise ValueError(f"Unknown LLM provider: {provider}")
