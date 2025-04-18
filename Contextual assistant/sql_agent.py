@@ -41,7 +41,7 @@ class SQLAgent:
         # Placeholder for LLM and app - will be implemented by other team members
         self.llm = self.get_llm(llm_provider)
         self.app = None
-        
+
     def get_llm(self, provider: str = None):
         """Initializes and returns an LLM instance based on the specified provider."""
         provider = provider or os.getenv("LLM_PROVIDER", "gemini").lower()
@@ -71,3 +71,18 @@ class SQLAgent:
             return ChatHuggingFace(pipeline=pipe)
         else:
             raise ValueError(f"Unknown LLM provider: {provider}")
+    def get_database_schema(self):
+        """Fetches all tables and their column info from the DuckDB database."""
+        schema = ""
+        tables = self.conn.execute("SHOW TABLES").fetchall()
+        for (table_name,) in tables:
+            schema += f"Table: {table_name}\n"
+            columns = self.conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+            for col in columns:
+                col_name, col_type, pk = col[1], col[2], col[5]
+                col_type_str = f"{col_type}"
+                if pk:
+                    col_type_str += ", Primary Key"
+                schema += f"- {col_name}: {col_type_str}\n"
+            schema += "\n"
+        return schema
