@@ -86,3 +86,36 @@ class SQLAgent:
                 schema += f"- {col_name}: {col_type_str}\n"
             schema += "\n"
         return schema
+    # Pydantic models for structured output
+    class CheckRelevance(BaseModel):
+        relevance: Literal["relevant", "not_relevant"]
+
+
+    @traceable
+    def check_relevance(self, state: AgentState, config=None):
+        """Checks if the user's question is relevant to the database schema."""
+        question = state["question"]
+        schema = self.get_database_schema()
+        system = f"""You must decide if the question is related to the database schema.
+        - Only respond 'relevant' if the question explicitly refers to columns, tables, or concepts present in the schema.
+        - If a table or column name is slightly misspelled but strongly resembles one in the schema, still consider it relevant.
+        Respond with only 'relevant' or 'not_relevant'.
+        Schema:
+        {schema}
+        """
+
+        human = f"Question: {question}"
+        check_prompt = ChatPromptTemplate.from_messages([
+            ("system", system),
+            ("human", human),
+        ])
+        structured_llm = self.llm.with_structured_output(self.CheckRelevance)
+        relevance_checker = check_prompt | structured_llm
+
+        try:
+            rel = relevance_checker.invoke({})
+            state["relevance"] = rel.relevance
+        except ValidationError:
+            state["relevance"] = "not_relevant"
+            print("Error at check relevance")
+        return state
