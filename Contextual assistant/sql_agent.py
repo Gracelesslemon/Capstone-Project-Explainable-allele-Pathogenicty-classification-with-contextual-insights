@@ -90,6 +90,8 @@ class SQLAgent:
     class CheckRelevance(BaseModel):
         relevance: Literal["relevant", "not_relevant"]
 
+    class ConvertToSQL(BaseModel):
+        sql_query: str = Field(description="The SQL query.")
 
     @traceable
     def check_relevance(self, state: AgentState, config=None):
@@ -118,4 +120,42 @@ class SQLAgent:
         except ValidationError:
             state["relevance"] = "not_relevant"
             print("Error at check relevance")
+        return state
+
+    @traceable
+    def convert_nl_to_sql(self, state: AgentState, config=None):
+        """Converts a natural language question into a valid SQL query."""
+        question = state["question"]
+        schema = self.get_database_schema()
+        system = f"""
+        You are an assistant that converts natural language questions into SQL queries for a DuckDB database.
+
+        Schema:
+        {schema}
+
+        ======================
+        General Rules:
+        ======================
+        - Use the correct SQL literal type based on the column datatype provided in the schema.
+        * Integers/floats: no quotes.
+        * TEXT columns: always use single quotes.
+        * Double quotes are reserved only for identifiers.
+        - Return only the SQL query, no explanations.
+
+        ======================
+        Database Scope:
+        ======================
+        - Only germline variants are stored.
+        - Only SNPs are stored.
+        """
+
+        convert_prompt = ChatPromptTemplate.from_messages([
+            ("system", system),
+            ("human", f"Question: {question}"),
+        ])
+        structured_llm = self.llm.with_structured_output(self.ConvertToSQL)
+        sql_generator = convert_prompt | structured_llm
+        result = sql_generator.invoke({"question": question})
+        sql = result.sql_query.strip()
+        state["sql_query"] = sql
         return state
