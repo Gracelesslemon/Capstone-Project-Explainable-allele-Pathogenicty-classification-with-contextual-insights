@@ -159,3 +159,25 @@ class SQLAgent:
         sql = result.sql_query.strip()
         state["sql_query"] = sql
         return state
+
+    @traceable
+    def execute_sql(self, state: AgentState):
+        """Executes the generated SQL query on the DuckDB connection."""
+        sql_query = state["sql_query"]
+        try:
+            result = self.conn.execute(sql_query)
+            if sql_query.lower().startswith("select"):
+                rows = result.fetchall()
+                columns = [desc[0] for desc in result.description]
+                if rows:
+                    state["query_rows"] = [dict(zip(columns, row)) for row in rows]
+                    formatted = "\n".join([str(dict(zip(columns, row))) for row in rows])
+                    state["query_result"] = formatted
+                else:
+                    state["query_rows"] = []
+                    state["query_result"] = "No results found."
+                state["sql_error"] = False
+        except Exception as e:
+            state["query_result"] = f"Error executing SQL query: {str(e)}"
+            state["sql_error"] = True
+        return state
