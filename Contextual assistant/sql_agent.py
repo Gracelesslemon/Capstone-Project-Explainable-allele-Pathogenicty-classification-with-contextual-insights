@@ -161,6 +161,21 @@ class SQLAgent:
         return state
 
     @traceable
+    def check_harmful_sql(self, state: AgentState):
+        """Inspects the generated SQL query for destructive operations."""
+        sql = state["sql_query"].lower()
+        harmful_keywords = ["drop", "delete", "update", "insert", "alter"]
+
+        state["sql_error"] = False
+        state["harmful"] = False
+
+        if any(x in sql for x in harmful_keywords):
+            state["query_result"] = "Error: Destructive queries are not allowed. This system is read-only."
+            state["harmful"] = True
+
+        return state
+
+    @traceable
     def execute_sql(self, state: AgentState):
         """Executes the generated SQL query on the DuckDB connection."""
         sql_query = state["sql_query"]
