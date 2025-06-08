@@ -196,3 +196,25 @@ class SQLAgent:
             state["query_result"] = f"Error executing SQL query: {str(e)}"
             state["sql_error"] = True
         return state
+
+    @traceable
+    def regenerate_query(self, state: AgentState):
+        """Reformulates a failed question to make it easier to convert into SQL."""
+        question = state["question"]
+        system = "Reformulate the question to make it easier to convert into a correct SQL query without losing the meaning of the query."
+        rewrite_prompt = ChatPromptTemplate.from_messages([
+            ("system", system),
+            ("human", f"Original Question: {question}"),
+        ])
+        structured_llm = self.llm.with_structured_output(self.RewrittenQuestion)
+        rewriter = rewrite_prompt | structured_llm
+        rewritten = rewriter.invoke({})
+        state["question"] = rewritten.question
+        state["attempts"] += 1
+        return state
+
+    @traceable
+    def end_max_iterations(self, state: AgentState):
+        """Handles cases where maximum retry attempts are reached."""
+        state["query_result"] = "Please try again."
+        return state
