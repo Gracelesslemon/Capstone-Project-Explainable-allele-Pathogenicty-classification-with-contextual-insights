@@ -71,6 +71,7 @@ class SQLAgent:
             return ChatHuggingFace(pipeline=pipe)
         else:
             raise ValueError(f"Unknown LLM provider: {provider}")
+
     def get_database_schema(self):
         """Fetches all tables and their column info from the DuckDB database."""
         schema = ""
@@ -86,12 +87,16 @@ class SQLAgent:
                 schema += f"- {col_name}: {col_type_str}\n"
             schema += "\n"
         return schema
+
     # Pydantic models for structured output
     class CheckRelevance(BaseModel):
         relevance: Literal["relevant", "not_relevant"]
 
     class ConvertToSQL(BaseModel):
         sql_query: str = Field(description="The SQL query.")
+
+    class RewrittenQuestion(BaseModel):
+        question: str
 
     @traceable
     def check_relevance(self, state: AgentState, config=None):
@@ -217,4 +222,10 @@ class SQLAgent:
     def end_max_iterations(self, state: AgentState):
         """Handles cases where maximum retry attempts are reached."""
         state["query_result"] = "Please try again."
+        return state
+
+    @traceable
+    def handle_not_relevant(self, state: AgentState):
+        """Handles cases where the question is not relevant to the database."""
+        state["query_result"] = "The query isn't relevant to the SQL tables."
         return state
