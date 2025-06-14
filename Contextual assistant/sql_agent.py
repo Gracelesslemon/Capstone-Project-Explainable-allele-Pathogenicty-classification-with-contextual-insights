@@ -229,3 +229,16 @@ class SQLAgent:
         """Handles cases where the question is not relevant to the database."""
         state["query_result"] = "The query isn't relevant to the SQL tables."
         return state
+
+    # Router functions
+    def relevance_router(self, state: AgentState):
+        return "convert_to_sql" if state["relevance"].lower() == "relevant" else "handle_not_relevant"
+
+    def execute_sql_router(self, state: AgentState):
+        return "generate_human_readable_answer" if not state["sql_error"] else "regenerate_query"
+
+    def check_attempts_router(self, state: AgentState):
+        return "convert_to_sql" if state["attempts"] < 3 else "end_max_iterations"
+
+    def harmful_sql_router(self, state: AgentState):
+        return "generate_human_readable_answer" if state["harmful"] else "execute_sql"
