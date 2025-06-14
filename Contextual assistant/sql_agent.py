@@ -40,7 +40,7 @@ class SQLAgent:
         self.conn = duckdb.connect(self.db_path)
         # Placeholder for LLM and app - will be implemented by other team members
         self.llm = self.get_llm(llm_provider)
-        self.app = None
+        self.app = self._build_workflow()
 
     def get_llm(self, provider: str = None):
         """Initializes and returns an LLM instance based on the specified provider."""
@@ -242,3 +242,46 @@ class SQLAgent:
 
     def harmful_sql_router(self, state: AgentState):
         return "generate_human_readable_answer" if state["harmful"] else "execute_sql"
+
+    def _build_workflow(self):
+        """Build and compile the workflow graph."""
+        workflow = StateGraph(AgentState)
+
+        # Add nodes
+        workflow.add_node("check_relevance", self.check_relevance)
+        workflow.add_node("convert_to_sql", self.convert_nl_to_sql)
+        workflow.add_node("check_harmful_sql", self.check_harmful_sql)
+        workflow.add_node("execute_sql", self.execute_sql)
+        workflow.add_node("generate_human_readable_answer", self.generate_human_readable_answer)
+        workflow.add_node("regenerate_query", self.regenerate_query)
+        workflow.add_node("handle_not_relevant", self.handle_not_relevant)
+        workflow.add_node("end_max_iterations", self.end_max_iterations)
+
+        # Add edges
+        workflow.add_conditional_edges("check_relevance", self.relevance_router, {
+            "convert_to_sql": "convert_to_sql",
+            "handle_not_relevant": "handle_not_relevant",
+        })
+
+        workflow.add_edge("convert_to_sql", "check_harmful_sql")
+        workflow.add_conditional_edges("execute_sql", self.execute_sql_router, {
+            "generate_human_readable_answer": "generate_human_readable_answer",
+            "regenerate_query": "regenerate_query",
+        })
+
+        workflow.add_conditional_edges("regenerate_query", self.check_attempts_router, {
+            "convert_to_sql": "convert_to_sql",
+            "end_max_iterations": "end_max_iterations",
+        })
+
+        workflow.add_conditional_edges("check_harmful_sql", self.harmful_sql_router, {
+            "generate_human_readable_answer": "generate_human_readable_answer",
+            "execute_sql": "execute_sql"
+        })
+
+        workflow.add_edge("generate_human_readable_answer", END)
+        workflow.add_edge("handle_not_relevant", END)
+        workflow.add_edge("end_max_iterations", END)
+
+        workflow.set_entry_point("check_relevance")
+        return workflow.compile()
