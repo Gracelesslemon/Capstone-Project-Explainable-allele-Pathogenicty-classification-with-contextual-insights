@@ -36,7 +36,7 @@ class SQLAgent:
     
     def __init__(self, db_path: str = None, llm_provider: str = None):
         """Initialize the SQL Agent with database connection and LLM."""
-        self.db_path = db_path or os.getenv("DB_PATH_sql", r"C:\Users\mathew\Desktop\Capstone\Datasets\Capstone_data_sql.duckdb")
+        self.db_path = db_path or os.getenv("DB_PATH_sql", r"C:\Users\vigne\Desktop\Capstone\Datasets\Capstone_data_sql.duckdb")
         self.conn = duckdb.connect(self.db_path)
         # Placeholder for LLM and app - will be implemented by other team members
         self.llm = self.get_llm(llm_provider)
@@ -203,6 +203,21 @@ class SQLAgent:
         return state
 
     @traceable
+    def generate_human_readable_answer(self, state: AgentState):
+        """
+        Placeholder for generating human-readable answers.
+        Currently just formats the result. In the future, this will call an LLM
+        to convert raw SQL results into natural language.
+        
+        Future implementation will be:
+        result = state["query_result"]    
+        state["query_result"] = f"Result:\n{call_llm(result)}"
+        """
+        result = state["query_result"]
+        state["query_result"] = f"Result:\n{result}"
+        return state
+
+    @traceable
     def regenerate_query(self, state: AgentState):
         """Reformulates a failed question to make it easier to convert into SQL."""
         question = state["question"]
@@ -285,3 +300,54 @@ class SQLAgent:
 
         workflow.set_entry_point("check_relevance")
         return workflow.compile()
+
+    def run(self, question: str) -> dict:
+        """
+        Main entry point for the SQL Agent.
+        
+        Args:
+            question (str): Natural language question to convert to SQL and execute
+            
+        Returns:
+            dict: Final state containing query results and metadata
+        """
+        state = {
+            "question": question,
+            "sql_query": "",
+            "query_result": "",
+            "query_rows": [],
+            "attempts": 0,
+            "relevance": "",
+            "sql_error": False,
+            "harmful": False,
+        }
+        return self.app.invoke(state)
+
+    def get_workflow_graph(self):
+        """Get the workflow graph for visualization."""
+        return self.app.get_graph(xray=True)
+
+    def close(self):
+        """Close the database connection."""
+        if self.conn:
+            self.conn.close()
+
+# Main execution and demo
+if __name__ == "__main__":
+    # Example usage
+    agent = SQLAgent()
+    
+    # Test query
+    result = agent.run("drop allele tables")
+    print("Query Result:", result["query_result"])
+    print("SQL Query:", result["sql_query"])
+    
+    # Optionally display workflow graph
+    try:
+        from IPython.display import Image, display
+        display(Image(agent.get_workflow_graph().draw_mermaid_png()))
+    except ImportError:
+        print("IPython not available - skipping graph display")
+    
+    # Clean up
+    agent.close()
