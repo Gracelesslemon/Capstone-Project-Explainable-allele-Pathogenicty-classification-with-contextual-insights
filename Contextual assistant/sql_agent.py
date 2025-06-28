@@ -109,6 +109,12 @@ class SQLAgent:
         Respond with only 'relevant' or 'not_relevant'.
         Schema:
         {schema}
+        Extra information :  
+        - The database only houses germline.
+        - The database only houses SNP's
+        - allele table has 2 columns that each house multiple id's. this a comphrehensive list of that : PhenotypeIDS: ['EFO', 'Gene', 'Human Phenotype Ontology', 'MONDO', 'MeSH', 'MedGen', 'OMIM', 'Orphanet']
+        OtherIDs: ['BRCA1-HCI', 'BTK @ LOVD', 'Breast Cancer Information Core (BIC) (BRCA1)', 'Breast Cancer Information Core (BIC) (BRCA2)', 'British Heart Foundation', 'COL7A1 database', 'COSMIC', 'ClinGen', 'ClinVar', 'GUCY2C database', 'HBVAR', 'LDLR-LOVD', 'LOVD 3', 'Leiden Muscular Dystrophy (CAV3)', 'Leiden Muscular Dystrophy (CHRND)', 'Leiden Muscular Dystrophy (CHRNE)', 'Leiden Muscular Dystrophy (DAG1)', 'Leiden Muscular Dystrophy (DPM3)', 'Leiden Muscular Dystrophy (MYL2)', 'Leiden Muscular Dystrophy (MYL3)', 'Leiden Muscular Dystrophy (MYOZ2)', 'Leiden Muscular Dystrophy (MYPN)', 'Leiden Muscular Dystrophy (PDLIM3)', 'Leiden Muscular Dystrophy (TNNT1)', 'Leiden Muscular Dystrophy (TNNT3)', 'Leiden Muscular Dystrophy (TPM1)', 'MSeqDR', 'MYBPC3 homepage - Leiden Muscular Dystrophy pages', 'NAA10 @ LOVD', 'OMIM', 'PharmGKB Clinical Annotation', 'RettBASE (CDKL5)', 'Tuberous sclerosis database (TSC1)', 'Tuberous sclerosis database (TSC2)', 'UniProtKB', 'UniProtKB/Swiss-Prot', 'dbRBC', 'dbVar']
+        - MC stands for Molecular consequence
         """
 
         human = f"Question: {question}"
@@ -138,6 +144,17 @@ class SQLAgent:
         Schema:
         {schema}
 
+        CRITICAL RULE:
+        - All TEXT values MUST use single quotes ('value'). Never use double quotes ("value").
+        - This applies regardless of user input formatting.
+        - Double quotes are ONLY for identifiers (table or column names).
+
+        Correct:
+        SELECT * FROM allele WHERE Category = 'within single gene';
+
+        Incorrect:
+        SELECT * FROM allele WHERE Category = "within single gene";   -- NEVER DO THIS
+
         ======================
         General Rules:
         ======================
@@ -146,6 +163,130 @@ class SQLAgent:
         * TEXT columns: always use single quotes.
         * Double quotes are reserved only for identifiers.
         - Return only the SQL query, no explanations.
+
+        ======================
+        Allele Table Guidelines:
+        ======================
+        1. **ID Lookups**
+        - For all ID lookups except AlleleID, GeneID, and RS# (dbSNP), prepend the appropriate key to the numeric value.
+            Example:
+            ```sql
+            SELECT * FROM allele WHERE HGNCID = 'HGNC:28986';
+            ```
+
+        2. **ClinicalSignificance**
+        - Values are separated by `;`.
+        - Exact match when user requests strictly 'Pathogenic':
+            ```sql
+            SELECT * FROM allele WHERE ClinicalSignificance = 'Pathogenic';
+            ```
+        - Otherwise, partial match:
+            ```sql
+            SELECT * FROM allele WHERE ClinicalSignificance LIKE '%Pathogenic%';
+            ```
+
+        3. **TestedInGTR**
+        - Stores 'Y' for yes and 'N' for no.
+            Example:
+            ```sql
+            SELECT * FROM allele WHERE TestedInGTR = 'Y';
+            ```
+
+        4. **LastEvaluated**
+        - Uses format 'Mon DD, YYYY' (e.g., 'Jun 29, 2015').
+            Example:
+            ```sql
+            SELECT * FROM allele WHERE LastEvaluated = 'Jun 29, 2015';
+            ```
+
+        5. **RCVAccession**
+        - Values are separated by `|`.
+        - To search for a specific accession:
+            ```sql
+            SELECT * FROM allele WHERE RCVAccession LIKE '%RCV000123456%';
+            ```
+
+        6. **PhenotypeIDS**
+        - `,` separates database IDs for the same phenotype.
+        - `|` separates different phenotypes entirely.
+        - Example:
+            ```sql
+            SELECT * FROM allele WHERE PhenotypeIDS LIKE '%OMIM:12345%';
+            ```
+        - Valid keys to use:
+            ['EFO', 'Gene', 'Human Phenotype Ontology', 'MONDO', 'MeSH', 'MedGen', 'OMIM', 'Orphanet']
+
+        7. **Origin**
+        - Uses `;` as separator.
+            Example:
+            ```sql
+            SELECT * FROM allele WHERE Origin LIKE '%germline%';
+            ```
+
+        8. **ReviewStatus**
+        - Possible values:
+            'no assertion criteria provided',
+            'criteria provided, multiple submitters, no conflicts',
+            'criteria provided, single submitter',
+            'criteria provided, conflicting classifications',
+            'reviewed by expert panel',
+            'no classifications from unflagged records',
+            'no classification provided',
+            'practice guideline'
+        - Example:
+            ```sql
+            SELECT * FROM allele WHERE ReviewStatus = 'reviewed by expert panel';
+            ```
+
+        9. **OtherIDs**
+        - Values separated by `,`.
+        - Example:
+            ```sql
+            SELECT * FROM allele WHERE OtherIDs LIKE '%ClinVarAccession123%';
+            ```
+        - Valid keys to use:
+            ['BRCA1-HCI', 'BTK @ LOVD', 'Breast Cancer Information Core (BIC) (BRCA1)', 'Breast Cancer Information Core (BIC) (BRCA2)', 'British Heart Foundation', 'COL7A1 database', 'COSMIC', 'ClinGen', 'ClinVar', 'GUCY2C database', 'HBVAR', 'LDLR-LOVD', 'LOVD 3', 'Leiden Muscular Dystrophy (CAV3)', 'Leiden Muscular Dystrophy (CHRND)', 'Leiden Muscular Dystrophy (CHRNE)', 'Leiden Muscular Dystrophy (DAG1)', 'Leiden Muscular Dystrophy (DPM3)', 'Leiden Muscular Dystrophy (MYL2)', 'Leiden Muscular Dystrophy (MYL3)', 'Leiden Muscular Dystrophy (MYOZ2)', 'Leiden Muscular Dystrophy (MYPN)', 'Leiden Muscular Dystrophy (PDLIM3)', 'Leiden Muscular Dystrophy (TNNT1)', 'Leiden Muscular Dystrophy (TNNT3)', 'Leiden Muscular Dystrophy (TPM1)', 'MSeqDR', 'MYBPC3 homepage - Leiden Muscular Dystrophy pages', 'NAA10 @ LOVD', 'OMIM', 'PharmGKB Clinical Annotation', 'RettBASE (CDKL5)', 'Tuberous sclerosis database (TSC1)', 'Tuberous sclerosis database (TSC2)', 'UniProtKB', 'UniProtKB/Swiss-Prot', 'dbRBC', 'dbVar']
+
+        10. **Category**
+            - Possible values:
+            'within single gene',
+            'within multiple genes by overlap',
+            'near gene, upstream',
+            'asserted, but not computed',
+            'near gene, downstream',
+            'not identified'
+            - Example:
+            ```sql
+            SELECT * FROM allele WHERE Category = 'within single gene';
+            ```
+
+        11. **MC (Molecular Consequence)**
+            - Follows format `SO:ID|consequence_name`.
+            - To query by ID:
+            ```sql
+            SELECT * FROM allele WHERE MC LIKE 'SO:0001583%';
+            ```
+
+        ======================
+        Cross-table Information:
+        ======================
+        - When asked "when was an allele last updated", use `cross_references` table.
+
+        - `var_citations` links:
+        * `alleleID` ↔ organization ID
+        * `variationID` ↔ organization ID
+        * OrganizationID column can contain multiple comma-separated IDs.
+
+        Example:
+        To get all organization names for AlleleID = 15043:
+        SELECT DISTINCT T1.OrganizationName
+        FROM organization_summary AS T1
+        JOIN (
+            SELECT AlleleID, UNNEST(STRING_SPLIT(OrganizationID, ',')) AS OrgID
+            FROM var_citations
+        ) AS T2
+        ON T1.OrganizationID = OrgID
+        WHERE T2.AlleleID = 15043;
 
         ======================
         Database Scope:
@@ -351,3 +492,12 @@ if __name__ == "__main__":
     
     # Clean up
     agent.close()
+
+
+'''
+USAGE :
+
+from sql_agent import SQLAgent
+agent = SQLAgent() or agent = SQLAgent(db_path="/custom/path/to/db.duckdb", llm_provider="gemini")
+result = agent.run("Show me pathogenic variants")
+agent.close()'''
