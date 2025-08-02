@@ -41,3 +41,34 @@ class VariantEncoder:
         
         # Create feature template
         self.feature_template = self._create_feature_template()
+
+    def _create_feature_template(self) -> pd.DataFrame:
+        """Create a template DataFrame with all possible encoded features"""
+        template_data = {}
+        
+        # Multi-hot encoding for MC
+        for mc in self.MC_categories:
+            template_data[f'has_MC_{mc}'] = 0
+            
+        # Multi-hot encoding for Origin
+        for origin in self.origin_categories:
+            template_data[f'has_Origin_{origin}'] = 0
+            
+        # One-hot encoding for VariantGeneRelation
+        for vgr in self.vgr_categories:
+            template_data[f'has_VariantGeneRelation_{vgr}'] = 0
+            
+        # One-hot encoding for Reference and Alternate alleles
+        for allele in self.alleles:
+            template_data[f'ref_is_{allele}'] = 0
+            template_data[f'alt_is_{allele}'] = 0
+            
+        # One-hot encoding for Chromosomes
+        for chrom in self.chromosomes:
+            template_data[f'chr_{chrom}'] = 0
+            
+        # Add genomic location features (encoded from GenomicLocationData)
+        template_data['is_genomic'] = 0
+        template_data['is_mitochondrial'] = 0
+        
+        return pd.DataFrame([template_data])
