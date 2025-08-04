@@ -72,3 +72,60 @@ class VariantEncoder:
         template_data['is_mitochondrial'] = 0
         
         return pd.DataFrame([template_data])
+
+    def _encode_genomic_location(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Encode GenomicLocationData into is_genomic and is_mitochondrial features"""
+        encoded_df = df.copy()
+        
+        # Single-hot encoding: 'g' -> is_genomic=1, is_mitochondrial=0
+        #                      'm' -> is_genomic=0, is_mitochondrial=1
+        encoded_df['is_genomic'] = (df['GenomicLocationData'] == 'g').astype(int)
+        encoded_df['is_mitochondrial'] = (df['GenomicLocationData'] == 'm').astype(int)
+        
+        return encoded_df
+    
+    def _encode_MC(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Multi-hot encode MC column"""
+        encoded_df = df.copy()
+        
+        for mc in self.MC_categories:
+            encoded_df[f'has_MC_{mc}'] = df['MC'].str.contains(mc, na=False).astype(int)
+            
+        return encoded_df
+    
+    def _encode_Origin(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Multi-hot encode Origin column"""
+        encoded_df = df.copy()
+        
+        for origin in self.origin_categories:
+            encoded_df[f'has_Origin_{origin}'] = df['Origin'].str.contains(origin, na=False).astype(int)
+            
+        return encoded_df
+    
+    def _encode_VariantGeneRelation(self, df: pd.DataFrame) -> pd.DataFrame:
+        """One-hot encode VariantGeneRelation column"""
+        encoded_df = df.copy()
+        
+        for vgr in self.vgr_categories:
+            encoded_df[f'has_VariantGeneRelation_{vgr}'] = (df['VariantGeneRelation'] == vgr).astype(int)
+            
+        return encoded_df
+    
+    def _encode_alleles(self, df: pd.DataFrame) -> pd.DataFrame:
+        """One-hot encode Reference and Alternate alleles"""
+        encoded_df = df.copy()
+        
+        for allele in self.alleles:
+            encoded_df[f'ref_is_{allele}'] = (df['ReferenceAlleleVCF'] == allele).astype(int)
+            encoded_df[f'alt_is_{allele}'] = (df['AlternateAlleleVCF'] == allele).astype(int)
+            
+        return encoded_df
+    
+    def _encode_chromosome(self, df: pd.DataFrame) -> pd.DataFrame:
+        """One-hot encode Chromosome"""
+        encoded_df = df.copy()
+        
+        for chrom in self.chromosomes:
+            encoded_df[f'chr_{chrom}'] = (df['Chromosome'] == chrom).astype(int)
+            
+        return encoded_df
