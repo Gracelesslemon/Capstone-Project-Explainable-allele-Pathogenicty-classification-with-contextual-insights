@@ -129,3 +129,44 @@ class VariantEncoder:
             encoded_df[f'chr_{chrom}'] = (df['Chromosome'] == chrom).astype(int)
             
         return encoded_df
+
+    def _log_unknown_categories(self, df: pd.DataFrame) -> List[str]:
+        """Log unknown categories and return AlleleIDs with unknown data"""
+        unknown_alleles = []
+        
+        # Check MC categories
+        if 'MC' in df.columns:
+            all_mc_variants = df['MC'].dropna().str.split(',').explode().unique()
+            unknown_mc = set(all_mc_variants) - set(self.MC_categories)
+            if unknown_mc:
+                affected_ids = df[df['MC'].str.contains('|'.join(unknown_mc), na=False)]['AlleleID'].tolist()
+                logger.warning(f"Unknown MC variants found: {unknown_mc} in AlleleIDs: {affected_ids}")
+                unknown_alleles.extend(affected_ids)
+        
+        # Check Origin categories
+        if 'Origin' in df.columns:
+            all_origins = df['Origin'].dropna().str.split(';').explode().unique()
+            unknown_origins = set(all_origins) - set(self.origin_categories)
+            if unknown_origins:
+                affected_ids = df[df['Origin'].str.contains('|'.join(unknown_origins), na=False)]['AlleleID'].tolist()
+                logger.warning(f"Unknown Origin types found: {unknown_origins} in AlleleIDs: {affected_ids}")
+                unknown_alleles.extend(affected_ids)
+        
+        # Check other categorical columns
+        categorical_checks = [
+            ('VariantGeneRelation', self.vgr_categories),
+            ('ReferenceAlleleVCF', self.alleles),
+            ('AlternateAlleleVCF', self.alleles),
+            ('Chromosome', self.chromosomes),
+            ('GenomicLocationData', self.genomic_location_categories)
+        ]
+        
+        for col, valid_categories in categorical_checks:
+            if col in df.columns:
+                unknown_vals = set(df[col].dropna().unique()) - set(valid_categories)
+                if unknown_vals:
+                    affected_ids = df[df[col].isin(unknown_vals)]['AlleleID'].tolist()
+                    logger.warning(f"Unknown {col} values found: {unknown_vals} in AlleleIDs: {affected_ids}")
+                    unknown_alleles.extend(affected_ids)
+        
+        return list(set(unknown_alleles))
