@@ -170,3 +170,47 @@ class VariantEncoder:
                     unknown_alleles.extend(affected_ids)
         
         return list(set(unknown_alleles))
+
+    def encode_single_input(self, input_data: Dict[str, Any]) -> Tuple[pd.DataFrame, List[str]]:
+        """
+        Encode a single input dictionary into model-ready features
+        
+        Args:
+            input_data: Dictionary with keys matching column names
+            
+        Returns:
+            encoded_features: DataFrame with encoded features
+            issues: List of issue messages
+        """
+        issues = []
+        
+        # Convert to DataFrame
+        df = pd.DataFrame([input_data])
+        
+        # Check for missing values in original data
+        required_cols = ['AlleleID', 'Origin', 'Chromosome', 'ReferenceAlleleVCF', 
+                        'AlternateAlleleVCF', 'VariantGeneRelation', 'MC', 'GenomicLocationData']
+        
+        missing_data_cols = [col for col in required_cols if col not in df.columns or df[col].isna().any()]
+        if missing_data_cols:
+            issues.append(f"Missing data in columns: {missing_data_cols}")
+            return None, issues
+        
+        # Log unknown categories
+        unknown_alleles = self._log_unknown_categories(df)
+        if unknown_alleles:
+            issues.extend([f"Unknown categories in AlleleID: {aid}" for aid in unknown_alleles])
+        
+        # Apply encodings
+        df = self._encode_MC(df)
+        df = self._encode_Origin(df)
+        df = self._encode_VariantGeneRelation(df)
+        df = self._encode_alleles(df)
+        df = self._encode_chromosome(df)
+        df = self._encode_genomic_location(df)
+        
+        # Select and order features according to template
+        feature_cols = [col for col in self.feature_template.columns]
+        encoded_features = df[['AlleleID', 'GeneID'] + feature_cols].copy() if 'GeneID' in df.columns else df[['AlleleID'] + feature_cols].copy()
+        
+        return encoded_features, issues
