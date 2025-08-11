@@ -214,3 +214,57 @@ class VariantEncoder:
         encoded_features = df[['AlleleID', 'GeneID'] + feature_cols].copy() if 'GeneID' in df.columns else df[['AlleleID'] + feature_cols].copy()
         
         return encoded_features, issues
+    
+    def encode_batch_input(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+        """
+        Encode batch input DataFrame into model-ready features
+        
+        Args:
+            df: Input DataFrame with required columns
+            
+        Returns:
+            encoded_features: DataFrame with encoded features
+            issues: List of AlleleIDs with issues
+        """
+        issues = []
+        
+        # Check required columns
+        required_cols = ['AlleleID', 'Origin', 'Chromosome', 'ReferenceAlleleVCF', 
+                        'AlternateAlleleVCF', 'VariantGeneRelation', 'MC', 'GenomicLocationData']
+        
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            issues.append(f"Missing required columns: {missing_cols}")
+            return None, issues
+        
+        # Check for rows with missing data
+        missing_data_mask = df[required_cols].isnull().any(axis=1)
+        missing_allele_ids = df[missing_data_mask]['AlleleID'].tolist()
+        
+        if missing_allele_ids:
+            logger.warning(f"Found {len(missing_allele_ids)} rows with missing data")
+            issues.extend(missing_allele_ids)
+            # Remove rows with missing data
+            df = df[~missing_data_mask].copy()
+        
+        if len(df) == 0:
+            issues.append("No valid rows remaining after removing missing data")
+            return None, issues
+        
+        # Log unknown categories
+        unknown_alleles = self._log_unknown_categories(df)
+        
+        # Apply encodings
+        df = self._encode_MC(df)
+        df = self._encode_Origin(df)
+        df = self._encode_VariantGeneRelation(df)
+        df = self._encode_alleles(df)
+        df = self._encode_chromosome(df)
+        df = self._encode_genomic_location(df)
+        
+        # Select and order features according to template
+        feature_cols = [col for col in self.feature_template.columns]
+        id_cols = ['AlleleID'] + (['GeneID'] if 'GeneID' in df.columns else [])
+        encoded_features = df[id_cols + feature_cols].copy()
+        
+        return encoded_features, issues
