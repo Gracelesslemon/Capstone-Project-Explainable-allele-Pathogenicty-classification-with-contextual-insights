@@ -306,3 +306,22 @@ class VariantEncoderEndpoint:
         except Exception as e:
             logger.error(f"Failed to read file {file_path}: {e}")
             raise
+    
+    def _get_clinical_significance(self, allele_id: int) -> Optional[str]:
+        """Get current clinical significance from database"""
+        try:
+            import duckdb
+            conn = duckdb.connect(self.DB_PATH_SQL)
+            query = "SELECT ClinicalSignificance FROM allele WHERE AlleleID = ?"
+            result = conn.execute(query, [allele_id]).fetchone()
+            conn.close()
+            
+            if result:
+                return result[0]
+            else:
+                logger.warning(f"AlleleID {allele_id} not found in ClinicalSignificance database")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get clinical significance for {allele_id}: {e}")
+            return None
