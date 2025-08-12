@@ -268,3 +268,41 @@ class VariantEncoder:
         encoded_features = df[id_cols + feature_cols].copy()
         
         return encoded_features, issues
+
+class VariantEncoderEndpoint:
+    """
+    Endpoint wrapper for VariantEncoder
+    """
+    
+    def __init__(self):
+        self.DB_PATH_SQL = r'C:\Users\vigne\Desktop\Capstone\datasets\Capstone_data_sql.duckdb'
+        
+        # Initialize the encoder
+        self.encoder = VariantEncoder()
+
+    def _read_file(self, file_path: str) -> pd.DataFrame:
+        """Read TSV or CSV file and return DataFrame"""
+        try:
+            file_path = Path(file_path)
+            
+            if not file_path.exists():
+                raise FileNotFoundError(f"File not found: {file_path}")
+            
+            # Determine file type and read accordingly
+            if file_path.suffix.lower() in ['.tsv', '.txt']:
+                df = pd.read_csv(file_path, sep='\t')
+            elif file_path.suffix.lower() == '.csv':
+                df = pd.read_csv(file_path)
+            else:
+                # Try to auto-detect
+                try:
+                    df = pd.read_csv(file_path, sep='\t')
+                except:
+                    df = pd.read_csv(file_path)
+            
+            logger.info(f"Successfully read {len(df)} rows from {file_path}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to read file {file_path}: {e}")
+            raise
