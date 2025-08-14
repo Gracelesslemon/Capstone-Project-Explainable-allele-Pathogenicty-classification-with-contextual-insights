@@ -325,3 +325,83 @@ class VariantEncoderEndpoint:
         except Exception as e:
             logger.error(f"Failed to get clinical significance for {allele_id}: {e}")
             return None
+            
+    def encode_variant_single(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Endpoint function for single variant encoding
+        
+        Args:
+            input_data: Dictionary with variant data
+            Required: MC, Origin, ReferenceAlleleVCF, AlternateAlleleVCF, Chromosome, VariantGeneRelation, GenomicLocationData
+            Optional: AlleleID, GeneID
+            
+        Returns:
+            Dictionary containing:
+            - allele_id: Input AlleleID (if provided)
+            - gene_id: Input GeneID (if provided) 
+            - clinical_significance: Current ClinicalSignificance from DB
+            - encoded_features: 66-length array ready for model
+            - validation_issues: List of issues/warnings
+        """
+        
+        validation_issues = []
+        result = {
+            'allele_id': input_data.get('AlleleID'),
+            'gene_id': input_data.get('GeneID'),
+            'clinical_significance': None,
+            'encoded_features': None,
+            'validation_issues': []
+        }
+        
+        # Check required fields
+        required_fields = ['MC', 'Origin', 'ReferenceAlleleVCF', 'AlternateAlleleVCF', 'Chromosome', 'VariantGeneRelation', 'GenomicLocationData']
+        missing_fields = [field for field in required_fields if field not in input_data or not input_data[field]]
+        
+        if missing_fields:
+            validation_issues.append(f"Missing required fields: {missing_fields}")
+            result['validation_issues'] = validation_issues
+            return result
+        
+        # Get clinical significance if AlleleID is provided
+        if input_data.get('AlleleID'):
+            clinical_sig = self._get_clinical_significance(input_data['AlleleID'])
+            result['clinical_significance'] = clinical_sig
+            if clinical_sig is None:
+                validation_issues.append(f"Clinical significance not found for AlleleID: {input_data['AlleleID']}")
+        
+        # Ensure AlleleID is present for encoding (required by original encoder)
+        if 'AlleleID' not in input_data:
+            input_data['AlleleID'] = 'temp_id_for_encoding'
+        
+        # Encode the variant
+        try:
+            encoded_df, encoder_issues = self.encoder.encode_single_input(input_data)
+            
+            if encoded_df is None:
+                validation_issues.extend(encoder_issues)
+                result['validation_issues'] = validation_issues
+                return result
+            
+            # Extract the 66 features (excluding AlleleID, GeneID columns)
+            feature_columns = [col for col in encoded_df.columns 
+                             if col not in ['AlleleID', 'GeneID']]
+            
+            if len(feature_columns) != 66:
+                validation_issues.append(f"Expected 66 features, got {len(feature_columns)}")
+                result['validation_issues'] = validation_issues
+                return result
+            
+            # Get the feature array
+            encoded_features = encoded_df[feature_columns].iloc[0].values.astype(np.float32)
+            result['encoded_features'] = encoded_features.tolist()
+            
+            # Add any encoder issues
+            if encoder_issues:
+                validation_issues.extend(encoder_issues)
+            
+        except Exception as e:
+            validation_issues.append(f"Encoding failed: {str(e)}")
+            logger.error(f"Variant encoding failed: {e}")
+        
+        result['validation_issues'] = validation_issues
+        return result
