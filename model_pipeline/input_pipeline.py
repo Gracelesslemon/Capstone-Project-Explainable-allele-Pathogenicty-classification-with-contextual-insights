@@ -553,3 +553,139 @@ class VariantEncoderEndpoint:
 
 # Instantiate the endpoint
 variant_encoder_endpoint = VariantEncoderEndpoint()
+
+def encode_variant_endpoint(
+    input_data: Optional[Dict[str, Any]] = None, 
+    file_path: Optional[str] = None, 
+    input_type: str = "auto"
+) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    """
+    Unified endpoint function for variant encoding - supports both single and batch processing
+    
+    Args:
+        input_data: Dictionary with variant data (for single variant)
+        file_path: Path to TSV/CSV file (for batch processing)
+        input_type: "single", "batch", or "auto" (auto-detect based on provided args)
+        
+    Returns:
+        For single variant: Dictionary with encoded features and metadata
+        For batch: Dictionary with batch processing results and list of variant results
+        
+    Usage Examples:
+        # Single variant
+        result = encode_variant_endpoint(
+            input_data={
+                'AlleleID': '12345',
+                'MC': 'missense_variant',
+                'Origin': 'germline',
+                'ReferenceAlleleVCF': 'A',
+                'AlternateAlleleVCF': 'T', 
+                'Chromosome': '1',
+                'VariantGeneRelation': 'within single gene',
+                'GenomicLocationData': 'g'
+            },
+            input_type="single"
+        )
+        
+        # Batch processing
+        result = encode_variant_endpoint(
+            file_path="/path/to/variants.tsv",
+            input_type="batch"
+        )
+        
+        # Auto-detect (recommended)
+        result = encode_variant_endpoint(input_data={...})  # Single
+        result = encode_variant_endpoint(file_path="file.tsv")  # Batch
+    """
+    
+    # Auto-detect input type if not specified
+    if input_type == "auto":
+        if input_data is not None and file_path is None:
+            input_type = "single"
+        elif file_path is not None and input_data is None:
+            input_type = "batch"
+        else:
+            raise ValueError("Invalid arguments: provide either input_data or file_path")
+    
+    # Dispatch based on input type
+    if input_type == "single":
+        return variant_encoder_endpoint.encode_variant_single(input_data)
+    elif input_type == "batch":
+        return variant_encoder_endpoint.encode_variant_batch(file_path)
+    else:
+        raise ValueError(f"Invalid input_type: {input_type}. Must be 'single', 'batch', or 'auto'.")
+
+
+
+result = encode_variant_endpoint(
+    input_data={
+        'AlleleID': 15044,
+        'GeneID': 55572,
+        'Origin': 'germline',
+        'Chromosome': '11o',
+        'ReferenceAlleleVCF': 'B',
+        'AlternateAlleleVCF': 'T',
+        'VariantGeneRelation': 'within single genes',
+        'MC': 'nonsense,non-coding_transcript_variant',
+        'GenomicLocationData': 'g'
+    },
+    input_type="single"
+)
+# output schema 
+# result = {
+#     "allele_id": str | int | None,        # AlleleID if given, else None
+#     "gene_id": str | int | None,          # GeneID if given, else None
+#     "clinical_significance": str | None,  # Value pulled from DB if found
+#     "encoded_features": List[float] | None,  # 66-length array of floats if encoding succeeds
+#     "validation_issues": List[str]        # Any warnings/errors/unknown categories
+# }
+
+batch_result = encode_variant_endpoint(
+    file_path=r"C:\Users\vigne\Desktop\Capstone\datasets\batchtest",
+    input_type="batch"
+)
+# Output schema 
+# batch_result = {
+#     "total_variants": int,               # Total rows read from file
+#     "successful_encodings": int,         # Number successfully encoded
+#     "failed_encodings": int,             # Number failed
+#     "results": [                         # One dict per variant, same schema as `result`
+#         {
+#             "allele_id": str | int | None,
+#             "gene_id": str | int | None,
+#             "clinical_significance": str | None,
+#             "encoded_features": List[float] | None,  # 66 features
+#             "validation_issues": List[str]
+#         },
+#         ...
+#     ],
+#     "global_issues": List[str]           # File-level issues (e.g. missing columns)
+# }
+
+
+
+print("\n--- Single Variant Result ---")
+print("Allele ID:", result["allele_id"])
+print("Gene ID:", result["gene_id"])
+print("Clinical Significance:", result["clinical_significance"])
+print("Validation Issues:", result["validation_issues"])
+print("Encoded Features Length:", len(result["encoded_features"]) if result["encoded_features"] else 0)
+print("First 10 Encoded Features:", result["encoded_features"][:10] if result["encoded_features"] else None)
+
+
+
+print("\n--- Batch Variant Result ---")
+print("Total Variants:", batch_result["total_variants"])
+print("Successful Encodings:", batch_result["successful_encodings"])
+print("Failed Encodings:", batch_result["failed_encodings"])
+print("Global Issues:", batch_result["global_issues"])
+
+print("\n--- First Variant Result in Batch ---")
+if batch_result["results"]:
+    first_var = batch_result["results"][0]
+    print("Allele ID:", first_var["allele_id"])
+    print("Gene ID:", first_var["gene_id"])
+    print("Clinical Significance:", first_var["clinical_significance"])
+    print("Validation Issues:", first_var["validation_issues"])
+    print("Encoded Features Length:", len(first_var["encoded_features"]) if first_var["encoded_features"] else 0)
+    print("First 10 Encoded Features:", first_var["encoded_features"][:10] if first_var["encoded_features"] else None)
