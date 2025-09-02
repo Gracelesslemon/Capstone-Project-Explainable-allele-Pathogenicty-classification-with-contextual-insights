@@ -1,0 +1,12 @@
+typing_extensions
+pydantic>=2.0
+langgraph
+langchain
+langchain-openai
+langchain-google-genai
+langchain-community
+langchain-huggingface
+transformers
+python-dotenv
+duckdb
+langsmith
