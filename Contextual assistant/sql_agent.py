@@ -13,6 +13,7 @@ import duckdb
 import os
 import json
 from langsmith import traceable
+from IPython.display import Image
 
 # Load environment variables
 load_dotenv(".env")
@@ -484,11 +485,12 @@ if __name__ == "__main__":
     print("SQL Query:", result["sql_query"])
     
     # Optionally display workflow graph
-    try:
-        from IPython.display import Image, display
-        display(Image(agent.get_workflow_graph().draw_mermaid_png()))
-    except ImportError:
-        print("IPython not available - skipping graph display")
+    img_obj = Image(agent.get_workflow_graph().draw_mermaid_png())
+
+    # Save the image data to a file
+    output_path = "output_image.png"
+    with open(output_path, "wb") as f:
+        f.write(img_obj.data)
     
     # Clean up
     agent.close()
