@@ -1,9 +1,13 @@
+import os
 import logging
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional, Union
+from dotenv import load_dotenv
 
+load_dotenv()
+DB_PATH_sql = os.getenv('DB_PATH_sql')
 
 
 logger = logging.getLogger(__name__)
@@ -275,7 +279,7 @@ class VariantEncoderEndpoint:
     """
     
     def __init__(self):
-        self.DB_PATH_SQL = r'C:\Users\vigne\Desktop\Capstone\datasets\Capstone_data_sql.duckdb'
+        self.DB_PATH_SQL = DB_PATH_sql
         
         # Initialize the encoder
         self.encoder = VariantEncoder()
@@ -406,150 +410,150 @@ class VariantEncoderEndpoint:
         result['validation_issues'] = validation_issues
         return result
 
-        def encode_variant_batch(self, file_path: str) -> Dict[str, Any]:
-            """
-            Endpoint function for batch variant encoding from file
+    def encode_variant_batch(self, file_path: str) -> Dict[str, Any]:
+        """
+        Endpoint function for batch variant encoding from file
+        
+        Args:
+            file_path: Path to TSV or CSV file with variant data
+            Required columns: MC, Origin, ReferenceAlleleVCF, AlternateAlleleVCF, Chromosome, VariantGeneRelation, GenomicLocationData
+            Optional columns: AlleleID, GeneID
             
-            Args:
-                file_path: Path to TSV or CSV file with variant data
-                Required columns: MC, Origin, ReferenceAlleleVCF, AlternateAlleleVCF, Chromosome, VariantGeneRelation, GenomicLocationData
-                Optional columns: AlleleID, GeneID
-                
-            Returns:
-                Dictionary containing:
-                - total_variants: Total number of variants processed
-                - successful_encodings: Number of successfully encoded variants
-                - failed_encodings: Number of failed encodings
-                - results: List of dictionaries, each containing:
-                    - allele_id, gene_id, clinical_significance, encoded_features, validation_issues
-                - global_issues: File-level issues
-            """
+        Returns:
+            Dictionary containing:
+            - total_variants: Total number of variants processed
+            - successful_encodings: Number of successfully encoded variants
+            - failed_encodings: Number of failed encodings
+            - results: List of dictionaries, each containing:
+                - allele_id, gene_id, clinical_significance, encoded_features, validation_issues
+            - global_issues: File-level issues
+        """
+        
+        global_issues = []
+        results = []
+        
+        try:
+            # Read the file
+            df = self._read_file(file_path)
             
-            global_issues = []
-            results = []
-            
-            try:
-                # Read the file
-                df = self._read_file(file_path)
-                
-                if df.empty:
-                    return {
-                        'total_variants': 0,
-                        'successful_encodings': 0,
-                        'failed_encodings': 0,
-                        'results': [],
-                        'global_issues': ['File is empty']
-                    }
-                
-                # Check required columns
-                required_cols = ['MC', 'Origin', 'ReferenceAlleleVCF', 'AlternateAlleleVCF', 'Chromosome', 'VariantGeneRelation', 'GenomicLocationData']
-                missing_cols = [col for col in required_cols if col not in df.columns]
-                
-                if missing_cols:
-                    return {
-                        'total_variants': len(df),
-                        'successful_encodings': 0,
-                        'failed_encodings': len(df),
-                        'results': [],
-                        'global_issues': [f"Missing required columns: {missing_cols}"]
-                    }
-                
-                # Add temporary AlleleID for rows without it
-                for idx, row in df.iterrows():
-                    if pd.isna(row.get('AlleleID')):
-                        df.at[idx, 'AlleleID'] = f'temp_id_{idx}'
-                
-                # Process using batch encoder
-                try:
-                    encoded_df, batch_issues = self.encoder.encode_batch_input(df)
-                    
-                    if encoded_df is None:
-                        return {
-                            'total_variants': len(df),
-                            'successful_encodings': 0,
-                            'failed_encodings': len(df),
-                            'results': [],
-                            'global_issues': batch_issues
-                        }
-                    
-                    # Extract feature columns (66 features)
-                    feature_columns = [col for col in encoded_df.columns 
-                                    if col not in ['AlleleID', 'GeneID']]
-                    
-                    if len(feature_columns) != 66:
-                        global_issues.append(f"Expected 66 features, got {len(feature_columns)}")
-                    
-                    # Process each row
-                    successful = 0
-                    failed = 0
-                    
-                    for idx, encoded_row in encoded_df.iterrows():
-                        original_row = df.iloc[idx]
-                        
-                        try:
-                            # Get clinical significance if real AlleleID
-                            clinical_sig = None
-                            allele_id = original_row.get('AlleleID')
-                            if allele_id and not str(allele_id).startswith('temp_id_'):
-                                clinical_sig = self._get_clinical_significance(str(allele_id))
-                            
-                            # Extract features
-                            encoded_features = encoded_row[feature_columns].values.astype(np.float32)
-                            
-                            # Create result
-                            variant_result = {
-                                'allele_id': allele_id if not str(allele_id).startswith('temp_id_') else None,
-                                'gene_id': original_row.get('GeneID'),
-                                'clinical_significance': clinical_sig,
-                                'encoded_features': encoded_features.tolist(),
-                                'validation_issues': []
-                            }
-                            
-                            # Add any specific issues for this variant
-                            if str(allele_id) in batch_issues:
-                                variant_result['validation_issues'].append(f"Batch processing issue: {allele_id}")
-                            
-                            results.append(variant_result)
-                            successful += 1
-                            
-                        except Exception as e:
-                            logger.error(f"Failed to process variant at index {idx}: {e}")
-                            results.append({
-                                'allele_id': allele_id if not str(allele_id).startswith('temp_id_') else None,
-                                'gene_id': original_row.get('GeneID'),
-                                'clinical_significance': None,
-                                'encoded_features': None,
-                                'validation_issues': [f"Processing failed: {str(e)}"]
-                            })
-                            failed += 1
-                    
-                    return {
-                        'total_variants': len(df),
-                        'successful_encodings': successful,
-                        'failed_encodings': failed,
-                        'results': results,
-                        'global_issues': global_issues + batch_issues
-                    }
-                    
-                except Exception as e:
-                    logger.error(f"Batch encoding failed: {e}")
-                    return {
-                        'total_variants': len(df),
-                        'successful_encodings': 0,
-                        'failed_encodings': len(df),
-                        'results': [],
-                        'global_issues': [f"Batch encoding failed: {str(e)}"]
-                    }
-                
-            except Exception as e:
-                logger.error(f"File processing failed: {e}")
+            if df.empty:
                 return {
                     'total_variants': 0,
                     'successful_encodings': 0,
                     'failed_encodings': 0,
                     'results': [],
-                    'global_issues': [f"File processing failed: {str(e)}"]
+                    'global_issues': ['File is empty']
                 }
+            
+            # Check required columns
+            required_cols = ['MC', 'Origin', 'ReferenceAlleleVCF', 'AlternateAlleleVCF', 'Chromosome', 'VariantGeneRelation', 'GenomicLocationData']
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            
+            if missing_cols:
+                return {
+                    'total_variants': len(df),
+                    'successful_encodings': 0,
+                    'failed_encodings': len(df),
+                    'results': [],
+                    'global_issues': [f"Missing required columns: {missing_cols}"]
+                }
+            
+            # Add temporary AlleleID for rows without it
+            for idx, row in df.iterrows():
+                if pd.isna(row.get('AlleleID')):
+                    df.at[idx, 'AlleleID'] = f'temp_id_{idx}'
+            
+            # Process using batch encoder
+            try:
+                encoded_df, batch_issues = self.encoder.encode_batch_input(df)
+                
+                if encoded_df is None:
+                    return {
+                        'total_variants': len(df),
+                        'successful_encodings': 0,
+                        'failed_encodings': len(df),
+                        'results': [],
+                        'global_issues': batch_issues
+                    }
+                
+                # Extract feature columns (66 features)
+                feature_columns = [col for col in encoded_df.columns 
+                                if col not in ['AlleleID', 'GeneID']]
+                
+                if len(feature_columns) != 66:
+                    global_issues.append(f"Expected 66 features, got {len(feature_columns)}")
+                
+                # Process each row
+                successful = 0
+                failed = 0
+                
+                for idx, encoded_row in encoded_df.iterrows():
+                    original_row = df.iloc[idx]
+                    
+                    try:
+                        # Get clinical significance if real AlleleID
+                        clinical_sig = None
+                        allele_id = original_row.get('AlleleID')
+                        if allele_id and not str(allele_id).startswith('temp_id_'):
+                            clinical_sig = self._get_clinical_significance(str(allele_id))
+                        
+                        # Extract features
+                        encoded_features = encoded_row[feature_columns].values.astype(np.float32)
+                        
+                        # Create result
+                        variant_result = {
+                            'allele_id': allele_id if not str(allele_id).startswith('temp_id_') else None,
+                            'gene_id': original_row.get('GeneID'),
+                            'clinical_significance': clinical_sig,
+                            'encoded_features': encoded_features.tolist(),
+                            'validation_issues': []
+                        }
+                        
+                        # Add any specific issues for this variant
+                        if str(allele_id) in batch_issues:
+                            variant_result['validation_issues'].append(f"Batch processing issue: {allele_id}")
+                        
+                        results.append(variant_result)
+                        successful += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to process variant at index {idx}: {e}")
+                        results.append({
+                            'allele_id': allele_id if not str(allele_id).startswith('temp_id_') else None,
+                            'gene_id': original_row.get('GeneID'),
+                            'clinical_significance': None,
+                            'encoded_features': None,
+                            'validation_issues': [f"Processing failed: {str(e)}"]
+                        })
+                        failed += 1
+                
+                return {
+                    'total_variants': len(df),
+                    'successful_encodings': successful,
+                    'failed_encodings': failed,
+                    'results': results,
+                    'global_issues': global_issues + batch_issues
+                }
+                
+            except Exception as e:
+                logger.error(f"Batch encoding failed: {e}")
+                return {
+                    'total_variants': len(df),
+                    'successful_encodings': 0,
+                    'failed_encodings': len(df),
+                    'results': [],
+                    'global_issues': [f"Batch encoding failed: {str(e)}"]
+                }
+            
+        except Exception as e:
+            logger.error(f"File processing failed: {e}")
+            return {
+                'total_variants': 0,
+                'successful_encodings': 0,
+                'failed_encodings': 0,
+                'results': [],
+                'global_issues': [f"File processing failed: {str(e)}"]
+            }
 
 # Instantiate the endpoint
 variant_encoder_endpoint = VariantEncoderEndpoint()
@@ -619,13 +623,13 @@ def encode_variant_endpoint(
 
 result = encode_variant_endpoint(
     input_data={
-        'AlleleID': 15044,
+        'AlleleID': 15043,
         'GeneID': 55572,
         'Origin': 'germline',
         'Chromosome': '11o',
         'ReferenceAlleleVCF': 'B',
         'AlternateAlleleVCF': 'T',
-        'VariantGeneRelation': 'within single genes',
+        'VariantGeneRelation': 'within single gene',
         'MC': 'nonsense,non-coding_transcript_variant',
         'GenomicLocationData': 'g'
     },
@@ -641,7 +645,7 @@ result = encode_variant_endpoint(
 # }
 
 batch_result = encode_variant_endpoint(
-    file_path=r"C:\Users\vigne\Desktop\Capstone\datasets\batchtest",
+    file_path=r"C:\Users\vigne\Desktop\Capstone_old\notebooks\batch_encoder_test.csv",
     input_type="batch"
 )
 # Output schema 
