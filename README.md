@@ -1,4 +1,4 @@
-# Allele Pathogenicity Classification with Contextual Insights
+# Explainable Allele Pathogenicity Classification with Contextual Insights
 
 ## About the Project
 This project aims to provide pathogenicity classification for a given allele and supplement it with additional contextual information in an interpretable manner.
