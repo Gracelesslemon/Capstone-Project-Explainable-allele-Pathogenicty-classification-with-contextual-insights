@@ -150,6 +150,22 @@ test_results, feature_importance, concept_importance, detailed_contributions = f
     model, testx, testy, trainx.columns.tolist()
 )
 ```
+---
+## Development Workflow
+
+### Branch Structure
+- **`feature/rag`**: Deprecated RAG implementation (kept as reference)
+- **`feature/sql-agent`**: SQL agent development branch (completed and merged to main)
+  - Future prompt tweaking and optimizations to be done here before merging to main
+- **`model/input_data_pipeline`**: Input encoding pipeline development (completed and merged to main)
+- **`model-main`**: Model experimentation and testing branch
+  - **Do not merge to main** - used exclusively for model development and testing
+  - Only model weights and architecture updates in utility files should be transferred to main. Utility file to be added.
+  - All ML model experimentation should be conducted on this branch
+
+### Main Branch
+- **Current Issue**: Branch visualization shows `model-main` as the primary branch due to older commit history, though `main` is the designated default branch
+- **Resolution**: Will be fixed later.
 --- 
 ## Project Tasks
 
@@ -163,6 +179,7 @@ test_results, feature_importance, concept_importance, detailed_contributions = f
 
 ### Contextual Assistant Side
 - [x] **SQL Agent**: Handles straightforward natural language to SQL queries with basic joins
+    - [ ] Potential addons would be to flush out the prompts through testing
 - [ ] **Graph RAG System**: Advanced query processing for scenarios like :
   - multi-hop SQL queries requiring multiple joins
   - Semantic straightforward RAG questions
