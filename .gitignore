@@ -212,3 +212,9 @@ __marimo__/
 *.duckdb
 
 *.cache
+
+*.pth
+
+*.csv
+
+*.tsv
