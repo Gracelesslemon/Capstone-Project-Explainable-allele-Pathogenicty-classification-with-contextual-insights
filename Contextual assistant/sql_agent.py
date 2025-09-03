@@ -480,7 +480,7 @@ if __name__ == "__main__":
     agent = SQLAgent()
     
     # Test query
-    result = agent.run("drop allele tables")
+    result = agent.run("info about allele with 15043")
     print("Query Result:", result["query_result"])
     print("SQL Query:", result["sql_query"])
     
