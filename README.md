@@ -40,13 +40,67 @@ print("Generated SQL:", result["sql_query"])
 # Clean up
 agent.close()
 ```
-
-**Limitations:**
-- Primarily focused on straightforward SQL queries or simple joins
-- Complex queries with multiple joins should be handled by the graph RAG system
+> [!NOTE]
+> Primarily focused on straightforward SQL queries or simple joins
+> Complex queries with multiple joins should be handled by the graph RAG system
 
 **Database Scope:**
 - Contains only germline variants
 - Focuses exclusively on SNPs (Single Nucleotide Polymorphisms)
-
 ---
+### Input Encoder Pipeline
+An encoding pipeline that processes user input and converts it into multi-hot and single-hot encoded features suitable for machine learning models.
+
+**Features:**
+- **Input Types**: Supports both single variant inputs and batch processing from files
+- **Input Validation**: Provides predefined options for categorical fields and validates user selections
+- **Clinical Significance Integration**: Automatically retrieves and includes clinical significance data when available in the database
+- **Error Logging**: Provides detailed feedback when validation fails or incorrect information is provided
+- **Feature Encoding**: Generates 66-length feature vectors using appropriate encoding methods
+
+**Usage:**
+
+Single Variant Processing:
+```python
+result = encode_variant_endpoint(
+    input_data={
+        'AlleleID': 15044,
+        'GeneID': 55572,
+        'Origin': 'germline',
+        'Chromosome': '11',
+        'ReferenceAlleleVCF': 'G',
+        'AlternateAlleleVCF': 'T',
+        'VariantGeneRelation': 'within single gene',
+        'MC': 'nonsense,non-coding_transcript_variant',
+        'GenomicLocationData': 'g'
+    },
+    input_type="single"
+)
+
+# Output Schema
+# result = {
+#     "allele_id": str | int | None,        # AlleleID if provided, else None
+#     "gene_id": str | int | None,          # GeneID if provided, else None
+#     "clinical_significance": str | None,  # Retrieved from database if found
+#     "encoded_features": List[float] | None,  # 66-length feature array if encoding succeeds
+#     "validation_issues": List[str]        # Any warnings/errors/unknown categories
+# }
+```
+
+Batch Processing:
+```python
+batch_result = encode_variant_endpoint(
+    file_path=r"C:\path\to\batch\file",
+    input_type="batch"
+)
+
+# Output Schema
+# batch_result = {
+#     "total_variants": int,               # Total rows processed from file
+#     "successful_encodings": int,         # Number of successfully encoded variants
+#     "failed_encodings": int,             # Number of failed encodings
+#     "results": [                         # List of results, one per variant (same schema as single result)
+#         # ... individual variant results
+#     ]
+# }
+```
