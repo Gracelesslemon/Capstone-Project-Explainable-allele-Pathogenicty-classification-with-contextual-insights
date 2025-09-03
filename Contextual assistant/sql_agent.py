@@ -15,7 +15,7 @@ import json
 from langsmith import traceable
 
 # Load environment variables
-load_dotenv("sql_agent.env")
+load_dotenv(".env")
 
 # AgentState as a TypedDict
 class AgentState(TypedDict):
@@ -36,7 +36,7 @@ class SQLAgent:
     
     def __init__(self, db_path: str = None, llm_provider: str = None):
         """Initialize the SQL Agent with database connection and LLM."""
-        self.db_path = db_path or os.getenv("DB_PATH_sql", r"C:\Users\vigne\Desktop\Capstone\Datasets\Capstone_data_sql.duckdb")
+        self.db_path = db_path or os.getenv("DB_PATH_sql")
         self.conn = duckdb.connect(self.db_path)
         # Placeholder for LLM and app - will be implemented by other team members
         self.llm = self.get_llm(llm_provider)

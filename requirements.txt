@@ -1,0 +1,7 @@
+pydantic
+langgraph
+langchain
+langchain_openai
+langchain_google_genai
+langchain_community
+langchain_huggingface
