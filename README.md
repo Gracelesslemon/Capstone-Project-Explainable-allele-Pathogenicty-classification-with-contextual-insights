@@ -14,6 +14,10 @@ This project aims to provide pathogenicity classification for a given allele and
 ### SQL Agent
 A natural language to SQL query system that processes user questions and returns database query results.
 
+> [!WARNING]
+> Apparently You can create a view and update that view and that can modify the db. check this
+
+
 **Features:**
 - **Relevance Checker**: Determines if the natural language request is relevant to the database schema
 - **Natural Language to SQL Conversion**: Converts natural language questions into valid SQL queries
