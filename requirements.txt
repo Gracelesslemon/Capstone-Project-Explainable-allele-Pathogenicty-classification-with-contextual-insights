@@ -6,3 +6,4 @@ langchain_google_genai
 langchain_community
 langchain_huggingface
 transformers
+thefuzz 

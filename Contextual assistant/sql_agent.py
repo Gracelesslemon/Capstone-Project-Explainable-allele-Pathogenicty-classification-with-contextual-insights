@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 import duckdb
 import os
 import json
+import re
+from thefuzz import process
 from langsmith import traceable
 
 # Load environment variables
@@ -27,6 +29,71 @@ class AgentState(TypedDict):
     relevance: str
     sql_error: bool
     harmful: bool  
+
+class FuzzyMatcher:
+    """Fuzzy matching for disease names, gene names, and gene symbols."""
+    
+    def __init__(self, conn):
+        """Initialize with DuckDB connection and load reference data."""
+        self.conn = conn
+        self.disease_names = []
+        self.gene_names = []
+        self.gene_symbols = []
+        self.load_reference_data()
+    
+    def load_reference_data(self):
+        """Load disease names, gene names, and gene symbols from database."""
+        try:
+            # Get disease names from allele table
+            disease_result = self.conn.execute("SELECT DISTINCT PhenotypeList FROM allele WHERE PhenotypeList IS NOT NULL").fetchall()
+            self.disease_names = [d[0] for d in disease_result if d[0]]
+            
+            # Get gene names and symbols from gene table
+            gene_result = self.conn.execute("SELECT GeneName, GeneSymbol, GenelevelDisease FROM gene WHERE GeneName IS NOT NULL OR GeneSymbol IS NOT NULL").fetchall()
+            for row in gene_result:
+                if row[0]:  # GeneName
+                    self.gene_names.append(row[0])
+                if row[1]:  # GeneSymbol
+                    self.gene_symbols.append(row[1])
+        except Exception as e:
+            print(f"[FUZZY MATCH] Error loading reference data: {e}")
+    
+    def replace_word_boundary(self, question: str, old: str, new: str) -> str:
+        """Replace only at word boundaries (case-insensitive)."""
+        pattern = r'\b' + re.escape(old) + r'\b'
+        return re.sub(pattern, new, question, flags=re.IGNORECASE)
+    
+    def fuzzy_match_and_replace(self, question: str, threshold: int = 85):
+        """
+        Find and replace all fuzzy matches in the question.
+        
+        Returns:
+            (modified_question, metadata_dict)
+        """
+        all_references = self.disease_names + self.gene_names + self.gene_symbols
+        words = question.split()
+        
+        metadata = {
+            "matches": [],
+            "replaced": [],
+        }
+        
+        modified_question = question
+        
+        # Find all fuzzy matches
+        for word in words:
+            
+            best_match, score = process.extractOne(word, all_references)
+            
+            if score >= threshold:
+                metadata["matches"].append((word, best_match, score))
+                
+                # Replace at word boundaries
+                modified_question = self.replace_word_boundary(modified_question, word, best_match)
+                
+                metadata["replaced"].append((word, best_match))
+        
+        return modified_question, metadata
 
 class SQLAgent:
     """
