@@ -222,26 +222,129 @@ class SENNClassifier:
         # Convert to tensor and add batch dimension
         tensor = torch.FloatTensor(encoded_features).unsqueeze(0).to(self.device)
         return tensor
+
+    def _get_ranked_features_by_importance(self, 
+                                       feature_importance: Dict[str, Dict[str, float]],
+                                       top_k: int = 10) -> Dict[str, List[Dict]]:
+        """
+        Get top K features ranked separately for global, benign, and pathogenic
+        
+        Returns:
+            Dict with three lists: global_ranking, benign_ranking, pathogenic_ranking
+        """
+        # Sort by global importance (absolute value)
+        global_sorted = sorted(
+            feature_importance.items(),
+            key=lambda x: abs(x[1]["global"]),
+            reverse=True
+        )
+        
+        # Sort by benign importance
+        benign_sorted = sorted(
+            feature_importance.items(),
+            key=lambda x: abs(x[1]["Benign"]),
+            reverse=True
+        )
+        
+        # Sort by pathogenic importance
+        pathogenic_sorted = sorted(
+            feature_importance.items(),
+            key=lambda x: abs(x[1]["Pathogenic"]),
+            reverse=True
+        )
+        
+        # Build ranking lists
+        global_ranking = []
+        for i, (feature, scores) in enumerate(global_sorted[:top_k], 1):
+            global_ranking.append({
+                "rank": i,
+                "feature": feature,
+                "score": scores["global"]
+            })
+        
+        benign_ranking = []
+        for i, (feature, scores) in enumerate(benign_sorted[:top_k], 1):
+            benign_ranking.append({
+                "rank": i,
+                "feature": feature,
+                "score": scores["Benign"]
+            })
+        
+        pathogenic_ranking = []
+        for i, (feature, scores) in enumerate(pathogenic_sorted[:top_k], 1):
+            pathogenic_ranking.append({
+                "rank": i,
+                "feature": feature,
+                "score": scores["Pathogenic"]
+            })
+        
+        return {
+            "global_ranking": global_ranking,
+            "benign_ranking": benign_ranking,
+            "pathogenic_ranking": pathogenic_ranking
+        }
+
+
+    def _get_detailed_concept_analysis(self, 
+                                    feature_importance: Dict[str, Dict[str, float]]) -> Dict[str, Any]:
+        """
+        Get detailed concept-level analysis with all feature contributions
+        
+        Returns:
+            Dict with concept scores and detailed feature breakdowns
+        """
+        concept_groups = {
+            'molecular_consequence': ['has_MC_'],
+            'data_source': ['has_Origin_'],
+            'gene_context': ['has_VariantGeneRelation_'],
+            'genomic_location': ['is_genomic', 'is_mitochondrial'],
+            'sequence_change': ['ref_is_', 'alt_is_']  # In case you add these back
+        }
+        
+        concept_scores = {}
+        detailed_contributions = {}
+        
+        for concept_name, prefixes in concept_groups.items():
+            concept_features = []
+            total_global_importance = 0
+            
+            for feature_name, scores in feature_importance.items():
+                # Check if feature belongs to this concept
+                is_match = False
+                for prefix in prefixes:
+                    if feature_name.startswith(prefix) or feature_name == prefix:
+                        is_match = True
+                        break
+                
+                if is_match:
+                    concept_features.append({
+                        "feature": feature_name,
+                        "global": scores["global"],
+                        "benign": scores["Benign"],
+                        "pathogenic": scores["Pathogenic"]
+                    })
+                    total_global_importance += abs(scores["global"])
+            
+            # Sort features within concept by absolute global importance
+            concept_features.sort(key=lambda x: abs(x["global"]), reverse=True)
+            
+            concept_scores[concept_name] = total_global_importance
+            detailed_contributions[concept_name] = concept_features
+        
+        # Sort concepts by total importance
+        sorted_concepts = sorted(concept_scores.items(), key=lambda x: x[1], reverse=True)
+        
+        return {
+            "concept_scores": dict(sorted_concepts),
+            "detailed_contributions": detailed_contributions
+        }
+
     
     def classify_single(self, encoder_output: Dict[str, Any]) -> Dict[str, Any]:
         """
         Classify a single variant with detailed output for LLM
         
-        Args:
-            encoder_output: Output from encode_single_variant() containing:
-                - encoded_features: List[float] (33 values)
-                - allele_id, gene_id, clinical_significance, validation_issues
-        
-        Returns:
-            Dictionary with:
-                - prediction: str ("Benign" or "Pathogenic")
-                - prediction_label: int (0 or 1)
-                - confidence: float (0-1)
-                - probabilities: Dict[str, float] {"Benign": 0.xx, "Pathogenic": 0.xx}
-                - feature_importance: Dict with global, benign, pathogenic importance
-                - top_contributing_features: List of top 10 features with weights
-                - concept_importance: Dict of concept-level importance
-                - input_metadata: Original allele_id, gene_id, clinical_significance
+        [Keep existing docstring]
         """
         # Extract encoded features
         encoded_features = encoder_output.get('encoded_features')
@@ -268,11 +371,18 @@ class SENNClassifier:
             input_tensor, concepts, relevances
         )
         
-        # Get top contributing features
+        # Get top contributing features (original simple version)
         top_features = self._get_top_features(feature_importance, top_k=10)
         
-        # Get concept-level importance
-        concept_importance = self._group_into_concepts(feature_importance)
+        # ===== NEW: Get comprehensive rankings =====
+        feature_rankings = self._get_ranked_features_by_importance(
+            feature_importance, top_k=10
+        )
+        
+        # ===== NEW: Get detailed concept analysis =====
+        detailed_concept_analysis = self._get_detailed_concept_analysis(
+            feature_importance
+        )
         
         # Build result
         result = {
@@ -283,9 +393,13 @@ class SENNClassifier:
                 self.CLASS_NAMES[0]: float(probs[0]),
                 self.CLASS_NAMES[1]: float(probs[1])
             },
-            "feature_importance": feature_importance,
-            "top_contributing_features": top_features,
-            "concept_importance": concept_importance,
+            "feature_importance": feature_importance,  # All 33 features with scores
+            "top_contributing_features": top_features,  # Simple top 10
+            
+            # ===== NEW FIELDS =====
+            "feature_rankings": feature_rankings,  # Top 10 for global, benign, pathogenic
+            "detailed_concept_analysis": detailed_concept_analysis,  # Full concept breakdown
+            
             "input_metadata": {
                 "allele_id": encoder_output.get('allele_id'),
                 "gene_id": encoder_output.get('gene_id'),
@@ -295,6 +409,7 @@ class SENNClassifier:
         }
         
         return result
+
     
     def classify_batch(self, 
                       batch_encoder_output: Dict[str, Any],
@@ -410,6 +525,14 @@ class SENNClassifier:
         """
         Re-classify with adjusted feature weights (for Gradio sliders)
         
+        Note:
+            Weight adjustments are applied MULTIPLICATIVELY to the input features,
+            not to the model's learned weights. This simulates "what if this feature
+            had a different value" rather than "what if the model weighted this feature differently".
+    
+            For interpretation: A multiplier >1.0 amplifies the feature's contribution,
+            <1.0 diminishes it.
+            
         Args:
             encoder_output: Output from encode_single_variant() containing encoded_features
             weight_adjustments: Dict mapping feature names to multipliers
@@ -637,20 +760,70 @@ def create_classifier(model_path: Optional[str] = None) -> SENNClassifier:
 
 
 # ==================== EXAMPLE USAGE ====================
+def print_detailed_results(result: Dict[str, Any]):
+    """
+    Pretty print classification results in the original training format
+    (Add this as a standalone function at the bottom of the file)
+    """
+    print("\n" + "="*80)
+    print("CLASSIFICATION RESULTS")
+    print("="*80)
+    
+    print(f"\nPrediction: {result['prediction']}")
+    print(f"Confidence: {result['confidence']:.4f}")
+    print(f"Probabilities: Benign={result['probabilities']['Benign']:.4f}, "
+          f"Pathogenic={result['probabilities']['Pathogenic']:.4f}")
+    
+    # Top 10 Most Important Features (Global)
+    print("\n" + "="*80)
+    print("Top 10 Most Important Features (Global):")
+    print("="*80)
+    for item in result['feature_rankings']['global_ranking']:
+        print(f"{item['rank']:2d}. {item['feature']:<45} | global: {item['score']:>8.4f}")
+    
+    # Top 10 Most Important Features (Benign)
+    print("\nTop 10 Most Important Features (Benign):")
+    print("="*80)
+    for item in result['feature_rankings']['benign_ranking']:
+        print(f"{item['rank']:2d}. {item['feature']:<45} | benign: {item['score']:>8.4f}")
+    
+    # Top 10 Most Important Features (Pathogenic)
+    print("\nTop 10 Most Important Features (Pathogenic):")
+    print("="*80)
+    for item in result['feature_rankings']['pathogenic_ranking']:
+        print(f"{item['rank']:2d}. {item['feature']:<45} | pathogenic: {item['score']:>8.4f}")
+    
+    # Concept-Level Analysis
+    print("\n" + "="*80)
+    print("CONCEPT-LEVEL IMPORTANCE ANALYSIS")
+    print("="*80)
+    
+    print("\nConcept-Level Importance (Global):")
+    for concept, score in result['detailed_concept_analysis']['concept_scores'].items():
+        print(f"{concept:<25}: {score:>8.4f}")
+    
+    print("\nDetailed Feature Contributions by Concept:")
+    for concept_name, features in result['detailed_concept_analysis']['detailed_contributions'].items():
+        if features:
+            print(f"\n{concept_name.upper().replace('_', ' ')}:")
+            for feat in features[:5]:  # Show top 5 per concept
+                print(f"  {feat['feature']:<45}: "
+                      f"global={feat['global']:>7.3f}, "
+                      f"benign={feat['benign']:>7.3f}, "
+                      f"pathogenic={feat['pathogenic']:>7.3f}")
 
 if __name__ == "__main__":
     # Example usage
-    from input_pipeline import encode_single_variant, encode_batch_variants
+    from input_pipeline import encode_single_variant,encode_batch_variants
     
     # Initialize classifier
     classifier = create_classifier()
     
     print("="*80)
-    print("SENN CLASSIFIER - EXAMPLE USAGE")
+    print("SENN CLASSIFIER - COMPREHENSIVE FEATURE IMPORTANCE")
     print("="*80)
     
-    # EXAMPLE 1: Single classification
-    print("\n=== SINGLE CLASSIFICATION ===")
+    # Single classification
     encoder_output = encode_single_variant({
         'AlleleID': 15040,
         'GeneID': 55572,
@@ -662,15 +835,8 @@ if __name__ == "__main__":
     
     result = classifier.classify_single(encoder_output)
     
-    print(f"Prediction: {result['prediction']}")
-    print(f"Confidence: {result['confidence']:.3f}")
-    print(f"\nTop 5 Contributing Features:")
-    for i, feat in enumerate(result['top_contributing_features'][:5], 1):
-        print(f"  {i}. {feat['feature']}: {feat['global_importance']:.3f} (favors {feat['favored_class']})")
-    
-    print(f"\nConcept Importance:")
-    for concept, score in result['concept_importance']['concept_scores'].items():
-        print(f"  {concept}: {score:.3f}")
+    # Use the pretty-print function
+    print_detailed_results(result)
     
     # EXAMPLE 2: Weight adjustment
     print("\n=== WEIGHT ADJUSTMENT ===")
@@ -688,21 +854,21 @@ if __name__ == "__main__":
     print(f"Prediction changed: {adjusted_result['prediction_changed']}")
     print(f"Confidence change: {adjusted_result['confidence_change']:+.3f}")
     
-    # # EXAMPLE 3: Batch classification
-    # print("\n=== BATCH CLASSIFICATION ===")
-    # batch_output = encode_batch_variants(r"C:\Users\vigne\Desktop\Capstone-Project-allele-Pathogenicty-classification-with-contextual-insights\batch_encoder_test.csv")
+    # EXAMPLE 3: Batch classification
+    print("\n=== BATCH CLASSIFICATION ===")
+    batch_output = encode_batch_variants(r"C:\Users\vigne\Desktop\Capstone-Project-allele-Pathogenicty-classification-with-contextual-insights\batch_encoder_test.csv")
     
-    # batch_result = classifier.classify_batch(
-    #     batch_encoder_output=batch_output,
-    #     original_csv_path=r"C:\Users\vigne\Desktop\Capstone-Project-allele-Pathogenicty-classification-with-contextual-insights\batch_encoder_test.csv",
-    #     output_csv_path="batch_test_predictions.csv",
-    #     include_confidence=True
-    # )
+    batch_result = classifier.classify_batch(
+        batch_encoder_output=batch_output,
+        original_csv_path=r"C:\Users\vigne\Desktop\Capstone-Project-allele-Pathogenicty-classification-with-contextual-insights\batch_encoder_test.csv",
+        output_csv_path="batch_test_predictions.csv",
+        include_confidence=True
+    )
     
-    # print(f"Total variants: {batch_result['total_variants']}")
-    # print(f"Successful: {batch_result['successful_predictions']}")
-    # print(f"Failed: {batch_result['failed_predictions']}")
-    # print(f"Output saved to: {batch_result['output_file']}")
-    # print(f"Predictions summary: {batch_result['summary']}")
+    print(f"Total variants: {batch_result['total_variants']}")
+    print(f"Successful: {batch_result['successful_predictions']}")
+    print(f"Failed: {batch_result['failed_predictions']}")
+    print(f"Output saved to: {batch_result['output_file']}")
+    print(f"Predictions summary: {batch_result['summary']}")
     
-    # print("\n" + "="*80)
+    print("\n" + "="*80)
