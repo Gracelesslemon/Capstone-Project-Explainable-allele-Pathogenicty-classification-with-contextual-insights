@@ -9,44 +9,23 @@ This project aims to provide pathogenicity classification for a given allele and
 
 ---
 
-## What Has Been Done So Far
+## Features:
 
 ### SQL Agent
 A natural language to SQL query system that processes user questions and returns database query results.
 
 > [!WARNING]
-> Apparently You can create a view and update that view and that can modify the db. check this
+>check : You can create a view and update that view and that can modify the db. check this
 
 
 **Features:**
 - **Relevance Checker**: Determines if the natural language request is relevant to the database schema
+- **Fuzzy matcher**: To catch any misspelling 
 - **Natural Language to SQL Conversion**: Converts natural language questions into valid SQL queries
 - **Harmful Query Prevention**: Basic security check to prevent destructive SQL operations.
 - **Query Regeneration**: When SQL generation fails, the system reformulates the original question and retries up to 3 times
 - **Automatic Query Execution**: Executes generated queries and returns formatted results
 - **Multi-LLM Support**: Supports multiple language model providers (Gemini, Perplexity, HuggingFace)
-
-**Usage:**
-```python
-from sql_agent import SQLAgent
-
-# Initialize with default settings
-agent = SQLAgent()
-
-# Or initialize with custom parameters
-agent = SQLAgent(db_path="/custom/path/to/db.duckdb", llm_provider="gemini")
-
-# Run a query
-result = agent.run("Show me allele id 15043")
-print("Query Result:", result["query_result"])
-print("Generated SQL:", result["sql_query"])
-
-# Clean up
-agent.close()
-```
-> [!NOTE]
-> Primarily focused on straightforward SQL queries or simple joins
-> Complex queries with multiple joins should be handled by the graph RAG system
 
 **Database Scope:**
 - Contains only germline variants
@@ -66,53 +45,8 @@ An encoding pipeline that processes user input and converts it into multi-hot an
 
 > [!IMPORTANT]
 > Allele id and gene id are not encoded and are returned as is.
-**Usage:**
 
-Single Variant Processing:
-```python
-result = encode_variant_endpoint(
-    input_data={
-        'AlleleID': 15044,
-        'GeneID': 55572,
-        'Origin': 'germline',
-        'Chromosome': '11',
-        'ReferenceAlleleVCF': 'G',
-        'AlternateAlleleVCF': 'T',
-        'VariantGeneRelation': 'within single gene',
-        'MC': 'nonsense,non-coding_transcript_variant',
-        'GenomicLocationData': 'g'
-    },
-    input_type="single"
-)
 
-# Output Schema
-# result = {
-#     "allele_id": str | int | None,        # AlleleID if provided, else None
-#     "gene_id": str | int | None,          # GeneID if provided, else None
-#     "clinical_significance": str | None,  # Retrieved from database if found
-#     "encoded_features": List[float] | None,  # 66-length feature array if encoding succeeds
-#     "validation_issues": List[str]        # Any warnings/errors/unknown categories
-# }
-```
-
-Batch Processing:
-```python
-batch_result = encode_variant_endpoint(
-    file_path=r"C:\path\to\batch\file",
-    input_type="batch"
-)
-
-# Output Schema
-# batch_result = {
-#     "total_variants": int,               # Total rows processed from file
-#     "successful_encodings": int,         # Number of successfully encoded variants
-#     "failed_encodings": int,             # Number of failed encodings
-#     "results": [                         # List of results, one per variant (same schema as single result)
-#         # ... individual variant results
-#     ]
-# }
-```
----
 ### Self-Explainable Neural Network (SENN)
 An interpretable machine learning model for allele pathogenicity classification that provides inherent explainability through its architecture.
 
@@ -144,49 +78,24 @@ An interpretable machine learning model for allele pathogenicity classification 
 - **Class-Specific Analysis**: Separate importance rankings for benign vs pathogenic predictions
 - **Model Transparency**: Direct access to concept relevances for each prediction
 
-**Usage:**
-```python
-# Training
-model = train_senn_model(trainx, trainy, valx, valy, num_epochs=50)
+### A gradio ui:
+**three tabs**
+- query the sql agent for information
+- Classify single variant and continue with context retrieval
+- Batch classification
 
-# Analysis and evaluation
-test_results, feature_importance, concept_importance, detailed_contributions = final_result(
-    model, testx, testy, trainx.columns.tolist()
-)
-```
----
-## Development Workflow
-
-### Branch Structure
-- **`feature/rag`**: Deprecated RAG implementation (kept as reference)
-- **`feature/sql-agent`**: SQL agent development branch (completed and merged to main)
-  - Future prompt tweaking and optimizations to be done here before merging to main
-- **`model/input_data_pipeline`**: Input encoding pipeline development (completed and merged to main)
-- **`model-main`**: Model experimentation and testing branch
-  - **Do not merge to main** - used exclusively for model development and testing
-  - Only model weights and architecture updates in utility files should be transferred to main. Utility file to be added.
-  - All ML model experimentation should be conducted on this branch
-
-### Main Branch
-- **Current Issue**: Branch visualization shows `model-main` as the primary branch due to older commit history, though `main` is the designated default branch
-- **Resolution**: Will be fixed later.
 --- 
 ## Project Tasks
 
 ### Global
-- [ ] **Chat UI Interface**: Unified interface connecting all system components
+- [X] **Chat UI Interface**: Unified interface connecting all system components
 
 ### Model Side
 - [x] **Input Encoder Pipeline**: Converts input values into model-ready features
 - [x] **Classification SENN Model**: Self-explainable neural network achieving 93% peak accuracy
-- [ ] **Natural Language Explanation Generator**: Convert feature importance scores into interpretable explanations for chat interface
+- [X] **Natural Language Explanation Generator**: Convert feature importance scores into interpretable explanations for chat interface
 
 ### Contextual Assistant Side
 - [x] **SQL Agent**: Handles straightforward natural language to SQL queries with basic joins
     - [ ] Potential addons would be to flush out the prompts through testing
-- [ ] **Graph RAG System**: Advanced query processing for scenarios like :
-  - multi-hop SQL queries requiring multiple joins
-  - Semantic straightforward RAG questions
-  - Semantic multi-relation RAG questions
-- [ ] **Query Decomposer**: Breaks down complex user inputs into manageable sub-queries for appropriate routing
-- [ ] **Query Router**: Routes decomposed queries to the appropriate processing systems (SQL Agent vs Graph RAG)
+    - [ ] Need to add more examples to make it more robust at handling a wide variety of queries.
