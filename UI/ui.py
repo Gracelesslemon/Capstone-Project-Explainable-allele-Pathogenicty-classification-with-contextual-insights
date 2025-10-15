@@ -244,3 +244,65 @@ with gr.Blocks(title="Variant Classification System") as demo:
 # Launch the app
 if __name__ == "__main__":
     demo.launch(debug=True, inbrowser=True)
+
+
+
+
+
+
+
+
+
+# # In your Gradio handler file
+# from senn_classifier import create_classifier
+# from input_encoder import encode_single_variant
+
+# # Initialize once at startup
+# classifier = create_classifier()
+
+# # Handler 1: Single variant classification
+# def classify_variant_handler(variant_input):
+#     # Encode
+#     encoder_output = encode_single_variant(variant_input)
+    
+#     # Classify
+#     result = classifier.classify_single(encoder_output)
+    
+#     # Return for display/LLM
+#     return result
+
+# # Handler 2: Weight adjustment
+# def weight_adjustment_handler(variant_input, slider_values):
+#     # Encode
+#     encoder_output = encode_single_variant(variant_input)
+    
+#     # Build weight adjustments from sliders
+#     weight_adjustments = {
+#         "has_MC_nonsense": slider_values['slider1'],
+#         "has_Origin_germline": slider_values['slider2'],
+#         # ... map all your sliders to feature names
+#     }
+    
+#     # Classify with adjustments
+#     result = classifier.classify_with_weight_adjustment(
+#         encoder_output, weight_adjustments
+#     )
+    
+#     return result
+
+# # Handler 3: Batch classification
+# def batch_classify_handler(uploaded_file_path):
+#     # Encode batch
+#     from input_encoder import encode_batch_variants
+#     batch_encoded = encode_batch_variants(uploaded_file_path)
+    
+#     # Classify batch
+#     output_path = "outputs/batch_predictions.csv"
+#     result = classifier.classify_batch(
+#         batch_encoder_output=batch_encoded,
+#         original_csv_path=uploaded_file_path,
+#         output_csv_path=output_path,
+#         include_confidence=True
+#     )
+    
+#     return result
