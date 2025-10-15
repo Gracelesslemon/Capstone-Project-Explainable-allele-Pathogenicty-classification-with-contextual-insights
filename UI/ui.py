@@ -1,10 +1,17 @@
 import gradio as gr
 
 # ===== TAB 1: DATABASE QUERY =====
+# def sql_query_handler(message, history):
+#     """Handler for SQL queries"""
+#     bot_response = f"You asked: {message}"
+#     return bot_response
+
 def sql_query_handler(message, history):
-    """Handler for SQL queries"""
-    bot_response = f"You asked: {message}"
-    return bot_response
+    history = history + [{"role": "user", "content": message}]
+    response = "Example answer"
+    history = history + [{"role": "assistant", "content": response}]
+    return history
+
 
 # ===== TAB 2: SINGLE CLASSIFICATION =====
 def classify_handler(allele_input):
@@ -35,7 +42,8 @@ with gr.Blocks(title="Variant Classification System") as demo:
         with gr.Tab("Database Query"):
             gr.Markdown("## Ask questions about variants in the database")
             
-            chatbot = gr.Chatbot(height=400)
+            chatbot = gr.Chatbot(type="messages", height=400)
+
             msg = gr.Textbox(
                 label="Your Question",
                 placeholder="e.g., Tell me about BRCA1"
