@@ -29,6 +29,7 @@ class AgentState(TypedDict):
     sql_error: bool
     harmful: bool  
 
+
 class SQLAgent:
     """
     A SQL Agent that converts natural language questions to SQL queries
@@ -39,7 +40,6 @@ class SQLAgent:
         """Initialize the SQL Agent with database connection and LLM."""
         self.db_path = db_path or os.getenv("DB_PATH_sql")
         self.conn = duckdb.connect(self.db_path)
-        # Placeholder for LLM and app - will be implemented by other team members
         self.llm = self.get_llm(llm_provider)
         self.app = self._build_workflow()
 
