@@ -71,29 +71,81 @@ with gr.Blocks(title="Variant Classification System") as demo:
             gr.Markdown("### Classify a single variant")
             
             # Input Section
+            with gr.Row(): 
+                allele_ID_input = gr.Textbox( 
+                    label="Allele ID ", 
+                    placeholder="e.g., 15044" ) 
+                gene_ID_input = gr.Textbox( 
+                    label="gene ID ", 
+                    placeholder="e.g., 15044" )
             with gr.Row():
-                allele_dropdown = gr.Dropdown(
-                    label="Allele ID",
-                    choices=["15044", "15045", "15046"],
-                    value="15044",
+                mc_dd = gr.Dropdown(
+                    label="Molecular Consequence",
+                    choices=[
+                            "nonsense",
+                            "non-coding_transcript_variant",
+                            "missense_variant",
+                            "intron_variant",
+                            "5_prime_UTR_variant",
+                            "splice_donor_variant",
+                            "synonymous_variant",
+                            "splice_acceptor_variant",
+                            "initiator_codon_variant",
+                            "3_prime_UTR_variant",
+                            "no_sequence_alteration",
+                            "stop_lost",
+                            "genic_upstream_transcript_variant",
+                            "genic_downstream_transcript_variant"
+                            ]
+                            ,
+                    multiselect=True,
                     interactive=True
                 )
 
-            with gr.Row():
-                gene_dropdown = gr.Dropdown(
-                    label="Gene",
-                    choices=["BRCA1", "TP53", "EGFR", "KRAS"],
+                origin_dd = gr.Dropdown(
+                    label="Origin",
+                    choices=[
+                            "germline",
+                            "biparental",
+                            "unknown",
+                            "maternal",
+                            "paternal",
+                            "inherited",
+                            "de novo",
+                            "not applicable",
+                            "tested-inconclusive",
+                            "uniparental",
+                            "not-reported"
+                            ]
+                            ,
+                    multiselect=True,
                     interactive=True
                 )
+            with gr.Row():
+                var_gene_reln_dd = gr.Dropdown(
+                    label="Variant Gene Relation",
+                    choices=[
+                            "within single gene",
+                            "within multiple genes by overlap",
+                            "asserted, but not computed",
+                            "near gene, upstream",
+                            "near gene, downstream",
+                            "not identified"
+                            ]
+                            ,
+                    interactive=True
+                )
+                gen_loc_data = gr.Dropdown(
+                    label="GenomicLocationData",
+                    choices=[
+                            "is genomic",
+                            "is mitochondrial",
+                            ]
+                            ,
+                    interactive=True
+                )
+            with gr.Row():
 
-            with gr.Row():
-                effect_dropdown = gr.Dropdown(
-                    label="Variant Effect",
-                    choices=["Missense", "Nonsense", "Frameshift", "Silent"],
-                    interactive=True
-                )
-            with gr.Row():
-                
                 classify_btn = gr.Button("Classify", variant="primary")
             
             # Result Display
@@ -126,8 +178,9 @@ with gr.Blocks(title="Variant Classification System") as demo:
             with gr.Row():
                 followup_input = gr.Textbox(
                     label="Your Question",
-                    placeholder="e.g., Show other pathogenic variants in this gene"
+                    placeholder="e.g., Give me more info about this variant"
                 )
+            with gr.Row():
                 followup_btn = gr.Button("Ask")
             
             followup_output = gr.Markdown(label="Answer")
@@ -138,7 +191,7 @@ with gr.Blocks(title="Variant Classification System") as demo:
             # Event: Classify button
             classify_btn.click(
                 fn=classify_handler,
-                inputs=[allele_dropdown,gene_dropdown,effect_dropdown ],
+                inputs=[allele_ID_input,gene_ID_input,mc_dd,origin_dd,var_gene_reln_dd,gen_loc_data],
                 outputs=[result_display, slider_section, allele_context]
             )
             
