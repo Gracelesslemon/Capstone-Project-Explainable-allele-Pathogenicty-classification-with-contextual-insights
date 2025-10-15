@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, List, Tuple, Optional, Union
+from typing import Dict, Any, List, Tuple, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,12 +35,7 @@ class VariantEncoder:
         self.vgr_categories = ['within single gene', 'within multiple genes by overlap',
                               'asserted, but not computed', 'near gene, upstream',
                               'near gene, downstream', 'not identified']
-        
-        self.alleles = ['A', 'T', 'G', 'C']
-        
-        self.chromosomes = ['11', '6', '2', '20', '10', '16', '22', '15', '1', '7', '8', '14',
-                           '21', '5', '4', '19', '3', '17', '12', '18', '9', '13', 'MT', 'Y', 'X']
-        
+    
         self.genomic_location_categories = ['g', 'm']
         
         # Create feature template
@@ -61,15 +56,6 @@ class VariantEncoder:
         # One-hot encoding for VariantGeneRelation
         for vgr in self.vgr_categories:
             template_data[f'has_VariantGeneRelation_{vgr}'] = 0
-            
-        # One-hot encoding for Reference and Alternate alleles
-        for allele in self.alleles:
-            template_data[f'ref_is_{allele}'] = 0
-            template_data[f'alt_is_{allele}'] = 0
-            
-        # One-hot encoding for Chromosomes
-        for chrom in self.chromosomes:
-            template_data[f'chr_{chrom}'] = 0
             
         # Add genomic location features (encoded from GenomicLocationData)
         template_data['is_genomic'] = 0
@@ -114,25 +100,6 @@ class VariantEncoder:
             encoded_df[f'has_VariantGeneRelation_{vgr}'] = (df['VariantGeneRelation'] == vgr).astype(int)
             
         return encoded_df
-    
-    def _encode_alleles(self, df: pd.DataFrame) -> pd.DataFrame:
-        """One-hot encode Reference and Alternate alleles"""
-        encoded_df = df.copy()
-        
-        for allele in self.alleles:
-            encoded_df[f'ref_is_{allele}'] = (df['ReferenceAlleleVCF'] == allele).astype(int)
-            encoded_df[f'alt_is_{allele}'] = (df['AlternateAlleleVCF'] == allele).astype(int)
-            
-        return encoded_df
-    
-    def _encode_chromosome(self, df: pd.DataFrame) -> pd.DataFrame:
-        """One-hot encode Chromosome"""
-        encoded_df = df.copy()
-        
-        for chrom in self.chromosomes:
-            encoded_df[f'chr_{chrom}'] = (df['Chromosome'] == chrom).astype(int)
-            
-        return encoded_df
 
     def _log_unknown_categories(self, df: pd.DataFrame) -> List[str]:
         """Log unknown categories and return AlleleIDs with unknown data"""
@@ -159,9 +126,6 @@ class VariantEncoder:
         # Check other categorical columns
         categorical_checks = [
             ('VariantGeneRelation', self.vgr_categories),
-            ('ReferenceAlleleVCF', self.alleles),
-            ('AlternateAlleleVCF', self.alleles),
-            ('Chromosome', self.chromosomes),
             ('GenomicLocationData', self.genomic_location_categories)
         ]
         
@@ -192,8 +156,7 @@ class VariantEncoder:
         df = pd.DataFrame([input_data])
         
         # Check for missing values in original data
-        required_cols = ['AlleleID', 'Origin', 'Chromosome', 'ReferenceAlleleVCF', 
-                        'AlternateAlleleVCF', 'VariantGeneRelation', 'MC', 'GenomicLocationData']
+        required_cols = ['AlleleID', 'Origin', 'VariantGeneRelation', 'MC', 'GenomicLocationData']
         
         missing_data_cols = [col for col in required_cols if col not in df.columns or df[col].isna().any()]
         if missing_data_cols:
@@ -209,8 +172,6 @@ class VariantEncoder:
         df = self._encode_MC(df)
         df = self._encode_Origin(df)
         df = self._encode_VariantGeneRelation(df)
-        df = self._encode_alleles(df)
-        df = self._encode_chromosome(df)
         df = self._encode_genomic_location(df)
         
         # Select and order features according to template
@@ -233,8 +194,7 @@ class VariantEncoder:
         issues = []
         
         # Check required columns
-        required_cols = ['AlleleID', 'Origin', 'Chromosome', 'ReferenceAlleleVCF', 
-                        'AlternateAlleleVCF', 'VariantGeneRelation', 'MC', 'GenomicLocationData']
+        required_cols = ['AlleleID', 'Origin','VariantGeneRelation', 'MC', 'GenomicLocationData']
         
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
@@ -262,8 +222,6 @@ class VariantEncoder:
         df = self._encode_MC(df)
         df = self._encode_Origin(df)
         df = self._encode_VariantGeneRelation(df)
-        df = self._encode_alleles(df)
-        df = self._encode_chromosome(df)
         df = self._encode_genomic_location(df)
         
         # Select and order features according to template
@@ -323,12 +281,12 @@ class VariantEncoderEndpoint:
             if result:
                 return result[0]
             else:
-                logger.warning(f"AlleleID {allele_id} not found in ClinicalSignificance database")
-                return None
+                logger.warning(f"AlleleID {allele_id} not found in  database. Using  placeholder")
+                return -1
                 
         except Exception as e:
-            logger.error(f"Failed to get clinical significance for {allele_id}: {e}")
-            return None
+            logger.error(f"Failed to get clinical significance for {allele_id}. Using placeholder: {e}")
+            return -1
 
     def encode_variant_single(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -352,13 +310,13 @@ class VariantEncoderEndpoint:
         result = {
             'allele_id': input_data.get('AlleleID'),
             'gene_id': input_data.get('GeneID'),
-            'clinical_significance': None,
+            'clinical_significance': -1,
             'encoded_features': None,
             'validation_issues': []
         }
         
         # Check required fields
-        required_fields = ['MC', 'Origin', 'ReferenceAlleleVCF', 'AlternateAlleleVCF', 'Chromosome', 'VariantGeneRelation', 'GenomicLocationData']
+        required_fields = ['MC', 'Origin','VariantGeneRelation', 'GenomicLocationData']
         missing_fields = [field for field in required_fields if field not in input_data or not input_data[field]]
         
         if missing_fields:
@@ -386,12 +344,12 @@ class VariantEncoderEndpoint:
                 result['validation_issues'] = validation_issues
                 return result
             
-            # Extract the 66 features (excluding AlleleID, GeneID columns)
+            # Extract the 33 features (excluding AlleleID, GeneID columns)
             feature_columns = [col for col in encoded_df.columns 
                              if col not in ['AlleleID', 'GeneID']]
             
-            if len(feature_columns) != 66:
-                validation_issues.append(f"Expected 66 features, got {len(feature_columns)}")
+            if len(feature_columns) != 33:
+                validation_issues.append(f"Expected 33 features, got {len(feature_columns)}")
                 result['validation_issues'] = validation_issues
                 return result
             
@@ -446,7 +404,7 @@ class VariantEncoderEndpoint:
                 }
             
             # Check required columns
-            required_cols = ['MC', 'Origin', 'ReferenceAlleleVCF', 'AlternateAlleleVCF', 'Chromosome', 'VariantGeneRelation', 'GenomicLocationData']
+            required_cols = ['MC', 'Origin','VariantGeneRelation', 'GenomicLocationData']
             missing_cols = [col for col in required_cols if col not in df.columns]
             
             if missing_cols:
@@ -476,19 +434,20 @@ class VariantEncoderEndpoint:
                         'global_issues': batch_issues
                     }
                 
-                # Extract feature columns (66 features)
+                # Extract feature columns (33 features)
                 feature_columns = [col for col in encoded_df.columns 
                                 if col not in ['AlleleID', 'GeneID']]
                 
-                if len(feature_columns) != 66:
-                    global_issues.append(f"Expected 66 features, got {len(feature_columns)}")
+                if len(feature_columns) != 33:
+                    global_issues.append(f"Expected 33 features, got {len(feature_columns)}")
                 
                 # Process each row
                 successful = 0
                 failed = 0
                 
                 for idx, encoded_row in encoded_df.iterrows():
-                    original_row = df.iloc[idx]
+                    allele_id = encoded_row['AlleleID']
+                    original_row = df[df['AlleleID'] == allele_id].iloc[0]
                     
                     try:
                         # Get clinical significance if real AlleleID
@@ -558,115 +517,45 @@ class VariantEncoderEndpoint:
 # Instantiate the endpoint
 variant_encoder_endpoint = VariantEncoderEndpoint()
 
-def encode_variant_endpoint(
-    input_data: Optional[Dict[str, Any]] = None, 
-    file_path: Optional[str] = None, 
-    input_type: str = "auto"
-) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+# ENDPOINT 1: Single Variant Encoding
+def encode_single_variant(input_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Unified endpoint function for variant encoding - supports both single and batch processing
+    Encode a single variant
     
     Args:
-        input_data: Dictionary with variant data (for single variant)
-        file_path: Path to TSV/CSV file (for batch processing)
-        input_type: "single", "batch", or "auto" (auto-detect based on provided args)
+        input_data: Dict with keys: MC, Origin, VariantGeneRelation, GenomicLocationData, AlleleID (optional), GeneID (optional)
         
     Returns:
-        For single variant: Dictionary with encoded features and metadata
-        For batch: Dictionary with batch processing results and list of variant results
-        
-    Usage Examples:
-        # Single variant
-        result = encode_variant_endpoint(
-            input_data={
-                'AlleleID': '12345',
-                'MC': 'missense_variant',
-                'Origin': 'germline',
-                'ReferenceAlleleVCF': 'A',
-                'AlternateAlleleVCF': 'T', 
-                'Chromosome': '1',
-                'VariantGeneRelation': 'within single gene',
-                'GenomicLocationData': 'g'
-            },
-            input_type="single"
-        )
-        
-        # Batch processing
-        result = encode_variant_endpoint(
-            file_path="/path/to/variants.tsv",
-            input_type="batch"
-        )
-        
-        # Auto-detect (recommended)
-        result = encode_variant_endpoint(input_data={...})  # Single
-        result = encode_variant_endpoint(file_path="file.tsv")  # Batch
+        Dict with keys: allele_id, gene_id, clinical_significance, encoded_features (33 floats), validation_issues
     """
+    return variant_encoder_endpoint.encode_variant_single(input_data)
+
+
+# ENDPOINT 2: Batch Variant Encoding
+def encode_batch_variants(file_path: str) -> Dict[str, Any]:
+    """
+    Encode multiple variants from file
     
-    # Auto-detect input type if not specified
-    if input_type == "auto":
-        if input_data is not None and file_path is None:
-            input_type = "single"
-        elif file_path is not None and input_data is None:
-            input_type = "batch"
-        else:
-            raise ValueError("Invalid arguments: provide either input_data or file_path")
-    
-    # Dispatch based on input type
-    if input_type == "single":
-        return variant_encoder_endpoint.encode_variant_single(input_data)
-    elif input_type == "batch":
-        return variant_encoder_endpoint.encode_variant_batch(file_path)
-    else:
-        raise ValueError(f"Invalid input_type: {input_type}. Must be 'single', 'batch', or 'auto'.")
+    Args:
+        file_path: Path to CSV/TSV file with columns: MC, Origin, VariantGeneRelation, GenomicLocationData, AlleleID (optional), GeneID (optional)
+        
+    Returns:
+        Dict with keys: total_variants, successful_encodings, failed_encodings, results (list), global_issues
+    """
+    return variant_encoder_endpoint.encode_variant_batch(file_path)
 
+# SINGLE VARIANT
+result = encode_single_variant({
+    'AlleleID': 15040,
+    'GeneID': 55572,
+    'Origin': 'germline',
+    'VariantGeneRelation': 'within single gene',
+    'MC': 'nonsense,non-coding_transcript_variant',
+    'GenomicLocationData': 'g'
+})
 
-
-result = encode_variant_endpoint(
-    input_data={
-        'AlleleID': 15043,
-        'GeneID': 55572,
-        'Origin': 'germline',
-        'Chromosome': '11o',
-        'ReferenceAlleleVCF': 'B',
-        'AlternateAlleleVCF': 'T',
-        'VariantGeneRelation': 'within single gene',
-        'MC': 'nonsense,non-coding_transcript_variant',
-        'GenomicLocationData': 'g'
-    },
-    input_type="single"
-)
-# output schema 
-# result = {
-#     "allele_id": str | int | None,        # AlleleID if given, else None
-#     "gene_id": str | int | None,          # GeneID if given, else None
-#     "clinical_significance": str | None,  # Value pulled from DB if found
-#     "encoded_features": List[float] | None,  # 66-length array of floats if encoding succeeds
-#     "validation_issues": List[str]        # Any warnings/errors/unknown categories
-# }
-
-batch_result = encode_variant_endpoint(
-    file_path=r"C:\Users\vigne\Desktop\Capstone_old\notebooks\batch_encoder_test.csv",
-    input_type="batch"
-)
-# Output schema 
-# batch_result = {
-#     "total_variants": int,               # Total rows read from file
-#     "successful_encodings": int,         # Number successfully encoded
-#     "failed_encodings": int,             # Number failed
-#     "results": [                         # One dict per variant, same schema as `result`
-#         {
-#             "allele_id": str | int | None,
-#             "gene_id": str | int | None,
-#             "clinical_significance": str | None,
-#             "encoded_features": List[float] | None,  # 66 features
-#             "validation_issues": List[str]
-#         },
-#         ...
-#     ],
-#     "global_issues": List[str]           # File-level issues (e.g. missing columns)
-# }
-
-
+# BATCH VARIANTS
+batch_result = encode_batch_variants(r"C:\Users\vigne\Desktop\Capstone-Project-allele-Pathogenicty-classification-with-contextual-insights\batch_encoder_test.csv")
 
 print("\n--- Single Variant Result ---")
 print("Allele ID:", result["allele_id"])
