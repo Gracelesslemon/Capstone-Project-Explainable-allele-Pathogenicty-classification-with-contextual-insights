@@ -544,41 +544,41 @@ def encode_batch_variants(file_path: str) -> Dict[str, Any]:
     """
     return variant_encoder_endpoint.encode_variant_batch(file_path)
 
-# SINGLE VARIANT
-result = encode_single_variant({
-    'AlleleID': 15040,
-    'GeneID': 55572,
-    'Origin': 'germline',
-    'VariantGeneRelation': 'within single gene',
-    'MC': 'nonsense,non-coding_transcript_variant',
-    'GenomicLocationData': 'g'
-})
+# # SINGLE VARIANT
+# result = encode_single_variant({
+#     'AlleleID': 15040,
+#     'GeneID': 55572,
+#     'Origin': 'germline',
+#     'VariantGeneRelation': 'within single gene',
+#     'MC': 'nonsense,non-coding_transcript_variant',
+#     'GenomicLocationData': 'g'
+# })
 
-# BATCH VARIANTS
-batch_result = encode_batch_variants(r"C:\Users\vigne\Desktop\Capstone-Project-allele-Pathogenicty-classification-with-contextual-insights\batch_encoder_test.csv")
+# # BATCH VARIANTS
+# batch_result = encode_batch_variants(r"C:\Users\vigne\Desktop\Capstone-Project-allele-Pathogenicty-classification-with-contextual-insights\batch_encoder_test.csv")
 
-print("\n--- Single Variant Result ---")
-print("Allele ID:", result["allele_id"])
-print("Gene ID:", result["gene_id"])
-print("Clinical Significance:", result["clinical_significance"])
-print("Validation Issues:", result["validation_issues"])
-print("Encoded Features Length:", len(result["encoded_features"]) if result["encoded_features"] else 0)
-print("First 10 Encoded Features:", result["encoded_features"][:10] if result["encoded_features"] else None)
+# print("\n--- Single Variant Result ---")
+# print("Allele ID:", result["allele_id"])
+# print("Gene ID:", result["gene_id"])
+# print("Clinical Significance:", result["clinical_significance"])
+# print("Validation Issues:", result["validation_issues"])
+# print("Encoded Features Length:", len(result["encoded_features"]) if result["encoded_features"] else 0)
+# print("First 10 Encoded Features:", result["encoded_features"][:10] if result["encoded_features"] else None)
 
 
 
-print("\n--- Batch Variant Result ---")
-print("Total Variants:", batch_result["total_variants"])
-print("Successful Encodings:", batch_result["successful_encodings"])
-print("Failed Encodings:", batch_result["failed_encodings"])
-print("Global Issues:", batch_result["global_issues"])
+# print("\n--- Batch Variant Result ---")
+# print("Total Variants:", batch_result["total_variants"])
+# print("Successful Encodings:", batch_result["successful_encodings"])
+# print("Failed Encodings:", batch_result["failed_encodings"])
+# print("Global Issues:", batch_result["global_issues"])
 
-print("\n--- First Variant Result in Batch ---")
-if batch_result["results"]:
-    first_var = batch_result["results"][0]
-    print("Allele ID:", first_var["allele_id"])
-    print("Gene ID:", first_var["gene_id"])
-    print("Clinical Significance:", first_var["clinical_significance"])
-    print("Validation Issues:", first_var["validation_issues"])
-    print("Encoded Features Length:", len(first_var["encoded_features"]) if first_var["encoded_features"] else 0)
-    print("First 10 Encoded Features:", first_var["encoded_features"][:10] if first_var["encoded_features"] else None)
+# print("\n--- First Variant Result in Batch ---")
+# if batch_result["results"]:
+#     first_var = batch_result["results"][0]
+#     print("Allele ID:", first_var["allele_id"])
+#     print("Gene ID:", first_var["gene_id"])
+#     print("Clinical Significance:", first_var["clinical_significance"])
+#     print("Validation Issues:", first_var["validation_issues"])
+#     print("Encoded Features Length:", len(first_var["encoded_features"]) if first_var["encoded_features"] else 0)
+#     print("First 10 Encoded Features:", first_var["encoded_features"][:10] if first_var["encoded_features"] else None)
