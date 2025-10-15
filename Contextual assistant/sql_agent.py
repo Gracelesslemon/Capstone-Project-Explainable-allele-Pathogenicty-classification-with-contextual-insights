@@ -12,9 +12,10 @@ from dotenv import load_dotenv
 import duckdb
 import os
 import json
+import re
+from thefuzz import process
 from langsmith import traceable
 from IPython.display import Image
-
 # Load environment variables
 load_dotenv(".env")
 
@@ -27,7 +28,151 @@ class AgentState(TypedDict):
     attempts: int
     relevance: str
     sql_error: bool
-    harmful: bool  
+    harmful: bool
+    fuzzy_matches: dict 
+
+class FuzzyMatcher:
+    """Fuzzy matching for disease names, gene names, and gene symbols."""
+    
+    def __init__(self, conn, llm):
+        """Initialize with DuckDB connection, LLM, and load reference data."""
+        self.conn = conn
+        self.llm = llm
+        self.disease_names = []
+        self.gene_names = []
+        self.gene_symbols = []
+        self.load_reference_data()
+    
+    def load_reference_data(self):
+        """Load disease names, gene names, and gene symbols from database."""
+        try:
+            # Get unique diseases from allele table (split multi-value fields)
+            disease_result = self.conn.execute("""
+                SELECT DISTINCT UNNEST(STRING_SPLIT(PhenotypeList, '|')) AS disease
+                FROM allele 
+                WHERE PhenotypeList IS NOT NULL
+            """).fetchall()
+            self.disease_names = [d[0].strip() for d in disease_result if d[0] and len(d[0].strip()) > 3]
+            
+            # Get gene info
+            gene_result = self.conn.execute("""
+                SELECT GeneName, GeneSymbol, GenelevelDisease 
+                FROM gene 
+                WHERE GeneName IS NOT NULL OR GeneSymbol IS NOT NULL
+            """).fetchall()
+            
+            for row in gene_result:
+                if row[0]:  # GeneName
+                    self.gene_names.append(row[0])
+                if row[1]:  # GeneSymbol
+                    self.gene_symbols.append(row[1])
+                if row[2]:  # GenelevelDisease
+                    for disease in row[2].split(';'):
+                        disease = disease.strip()
+                        if disease and len(disease) > 3:
+                            self.disease_names.append(disease)
+            
+            # Deduplicate
+            self.disease_names = list(set(self.disease_names))
+            self.gene_names = list(set(self.gene_names))
+            self.gene_symbols = list(set(self.gene_symbols))
+            
+            print(f"[FUZZY MATCH] Loaded {len(self.disease_names)} unique diseases, "
+                f"{len(self.gene_names)} gene names, {len(self.gene_symbols)} gene symbols")
+        except Exception as e:
+            print(f"[FUZZY MATCH] Error loading reference data: {e}")
+    
+    def replace_word_boundary(self, question: str, old: str, new: str) -> str:
+        """Replace only at word boundaries (case-insensitive)."""
+        pattern = r'\b' + re.escape(old) + r'\b'
+        return re.sub(pattern, new, question, flags=re.IGNORECASE)
+    
+    def extract_gene_disease_terms(self, question: str) -> list:
+        """
+        Use LLM to extract gene and disease terms from the question.
+        Returns a list of terms to fuzzy match.
+        """
+        
+        
+        class ExtractedTerms(BaseModel):
+            terms: List[str] = Field(description="List of gene names, gene symbols, or disease names mentioned in the question")
+        
+        system = """You are an expert at extracting gene symbols, gene names, and disease names from biomedical questions.
+
+        Your task: Extract ONLY the gene symbols, gene names, or disease names from the question.
+        Do NOT include SQL keywords, verbs, or common words.
+
+        IMPORTANT: Be aware of common misspellings, typos, and context clues. If a word looks like it could be a gene/disease name based on context (even if misspelled), extract it.
+
+        Examples:
+        - "Show BRCA1 variants" → ["BRCA1"]
+        - "What diseases are linked to TP53?" → ["TP53"]
+        - "Find pathogenic variants in CFTR" → ["CFTR"]
+        - "info about gene fred1" → ["fred1"]  (likely misspelled gene name)
+        - "BRCA 1 pathogenic" → ["BRCA 1"]  (typo with space)
+        - "drop allele tables" → []
+        - "show me results" → []
+        - "cystic fibrosis variants in CFTR gene" → ["cystic fibrosis", "CFTR"]
+
+        Return an empty list if no genes or diseases are mentioned."""
+        
+        human = f"Question: {question}"
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system),
+            ("human", human),
+        ])
+        
+        structured_llm = self.llm.with_structured_output(ExtractedTerms)
+        chain = prompt | structured_llm
+        
+        try:
+            response = chain.invoke({})
+            return response.terms if response.terms else []
+        except Exception as e:
+            print(f"[FUZZY MATCH] Error extracting terms: {e}")
+            return []
+
+    def fuzzy_match_and_replace(self, question: str, threshold: int = 75):
+        """Extract gene/disease terms using LLM, then fuzzy match only those terms."""
+        metadata = {
+            "matches": [],
+            "replaced": [],
+            "extracted_terms": [],
+        }
+        
+        # Step 1: Extract terms with LLM
+        extracted_terms = self.extract_gene_disease_terms(question)
+        
+        if not extracted_terms:
+            print(f"[FUZZY MATCH] No terms extracted, skipping")
+            return question, metadata
+        
+        metadata["extracted_terms"] = extracted_terms
+        
+        all_references = self.disease_names + self.gene_names + self.gene_symbols
+        
+        # Step 2: Fuzzy match extracted terms
+        terms_to_replace = {}
+        for term in extracted_terms:
+            result = process.extractOne(term, all_references)
+            if result:
+                best_match, score = result[0], result[1]
+                if score >= threshold:
+                    terms_to_replace[term] = best_match
+                    metadata["matches"].append((term, best_match, score))
+        
+        # Step 3: Replace all at once
+        modified_question = question
+        for old, new in terms_to_replace.items():
+            modified_question = self.replace_word_boundary(modified_question, old, new)
+            metadata["replaced"].append((old, new))
+        
+        if metadata["replaced"]:
+            print(f"[FUZZY MATCH] Extracted: {extracted_terms}")
+            print(f"[FUZZY MATCH] Replaced: {metadata['replaced']}")
+        
+        return modified_question, metadata
 
 
 class SQLAgent:
@@ -41,6 +186,7 @@ class SQLAgent:
         self.db_path = db_path or os.getenv("DB_PATH_sql")
         self.conn = duckdb.connect(self.db_path)
         self.llm = self.get_llm(llm_provider)
+        self.fuzzy_matcher = FuzzyMatcher(self.conn, self.llm)
         self.app = self._build_workflow()
 
     def get_llm(self, provider: str = None):
@@ -132,6 +278,34 @@ class SQLAgent:
         except ValidationError:
             state["relevance"] = "not_relevant"
             print("Error at check relevance")
+        return state
+
+    @traceable
+    def fuzzy_match_node(self, state: AgentState, config=None):
+        """Fuzzy match disease names, gene names, and gene symbols in the question."""
+        original_question = state["question"]
+        
+        # Run fuzzy matching (LLM extracts terms first, then we fuzzy match only those)
+        modified_question, metadata = self.fuzzy_matcher.fuzzy_match_and_replace(
+            original_question,
+            threshold=80 # ------------------------------------------------------------------------
+        )
+        
+        # Update state
+        state["question"] = modified_question
+        state["fuzzy_matches"] = {
+            "original_question": original_question,
+            "extracted_terms": metadata["extracted_terms"],
+            "matches_found": len(metadata["matches"]),
+            "replacements": metadata["replaced"],
+        }
+        
+        if metadata["replaced"]:
+            print(f"[FUZZY MATCH] Original: {original_question}")
+            print(f"[FUZZY MATCH] Extracted terms: {metadata['extracted_terms']}")
+            print(f"[FUZZY MATCH] Modified: {modified_question}")
+            print(f"[FUZZY MATCH] Replacements: {metadata['replaced']}")
+        
         return state
 
     @traceable
@@ -389,7 +563,7 @@ class SQLAgent:
 
     # Router functions
     def relevance_router(self, state: AgentState):
-        return "convert_to_sql" if state["relevance"].lower() == "relevant" else "handle_not_relevant"
+        return "fuzzy_match" if state["relevance"].lower() == "relevant" else "handle_not_relevant"
 
     def execute_sql_router(self, state: AgentState):
         return "generate_human_readable_answer" if not state["sql_error"] else "regenerate_query"
@@ -406,6 +580,7 @@ class SQLAgent:
 
         # Add nodes
         workflow.add_node("check_relevance", self.check_relevance)
+        workflow.add_node("fuzzy_match", self.fuzzy_match_node)
         workflow.add_node("convert_to_sql", self.convert_nl_to_sql)
         workflow.add_node("check_harmful_sql", self.check_harmful_sql)
         workflow.add_node("execute_sql", self.execute_sql)
@@ -416,11 +591,15 @@ class SQLAgent:
 
         # Add edges
         workflow.add_conditional_edges("check_relevance", self.relevance_router, {
-            "convert_to_sql": "convert_to_sql",
+            "fuzzy_match": "fuzzy_match",
             "handle_not_relevant": "handle_not_relevant",
         })
-
+        workflow.add_edge("fuzzy_match", "convert_to_sql")
         workflow.add_edge("convert_to_sql", "check_harmful_sql")
+        workflow.add_conditional_edges("check_harmful_sql", self.harmful_sql_router, {
+            "generate_human_readable_answer": "generate_human_readable_answer",
+            "execute_sql": "execute_sql"
+        })
         workflow.add_conditional_edges("execute_sql", self.execute_sql_router, {
             "generate_human_readable_answer": "generate_human_readable_answer",
             "regenerate_query": "regenerate_query",
@@ -431,10 +610,7 @@ class SQLAgent:
             "end_max_iterations": "end_max_iterations",
         })
 
-        workflow.add_conditional_edges("check_harmful_sql", self.harmful_sql_router, {
-            "generate_human_readable_answer": "generate_human_readable_answer",
-            "execute_sql": "execute_sql"
-        })
+        
 
         workflow.add_edge("generate_human_readable_answer", END)
         workflow.add_edge("handle_not_relevant", END)
@@ -462,6 +638,7 @@ class SQLAgent:
             "relevance": "",
             "sql_error": False,
             "harmful": False,
+            "fuzzy_matches": {},
         }
         return self.app.invoke(state)
 
@@ -480,7 +657,7 @@ if __name__ == "__main__":
     agent = SQLAgent()
     
     # Test query
-    result = agent.run("info about allele with 15043")
+    result = agent.run("info about gene fred1")
     print("Query Result:", result["query_result"])
     print("SQL Query:", result["sql_query"])
     
