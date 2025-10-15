@@ -2,7 +2,6 @@ typing_extensions
 pydantic>=2.0
 langgraph
 langchain
-<<<<<<< HEAD
 langchain-openai
 langchain-google-genai
 langchain-community
@@ -11,13 +10,4 @@ transformers
 python-dotenv
 duckdb
 langsmith
-
-
-=======
-langchain_openai
-langchain_google_genai
-langchain_community
-langchain_huggingface
-transformers
 thefuzz 
->>>>>>> ui
