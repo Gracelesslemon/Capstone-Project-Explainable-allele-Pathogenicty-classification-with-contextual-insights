@@ -99,3 +99,10 @@ An interpretable machine learning model for allele pathogenicity classification 
 - [x] **SQL Agent**: Handles straightforward natural language to SQL queries with basic joins
     - [ ] Potential addons would be to flush out the prompts through testing
     - [ ] Need to add more examples to make it more robust at handling a wide variety of queries.
+
+# FUZZY MATCH FOR DISEASE IS ; SEPARATED CHANGE THAT . IMPORTANT 
+
+[FUZZY MATCH] Original: any conflicts where  disease is galloway ?
+[FUZZY MATCH] Extracted terms: ['galloway']
+[FUZZY MATCH] Modified: any conflicts where  disease is Galloway-Mowat syndrome 8;Nephrotic syndrome, type 18 ?
+[FUZZY MATCH] Replacements: [('galloway', 'Galloway-Mowat syndrome 8;Nephrotic syndrome, type 18')]
