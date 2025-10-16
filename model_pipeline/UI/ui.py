@@ -249,7 +249,7 @@ def batch_classify_handler(file, progress=gr.Progress()):
 
 
 # ===== BUILD UI =====
-with gr.Blocks(title="Variant Classification System", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="Variant Classification System", theme=gr.themes.Glass()) as demo:
     
     gr.Markdown("# 🧬 Variant Classification & Query System")
     

@@ -115,21 +115,22 @@ class LLMFormatter:
         else:
             result_str = str(query_result)
         
-        system_prompt = """You are a clinical database assistant formatting ClinVar query results for clinicians.
+        system_prompt = """You are a clinical database assistant formatting ClinVar query results.
 
-            **Formatting Guidelines**:
-            1. Use structured markdown tables for gene/variant statistics
-            2. Highlight clinically relevant metrics (pathogenic counts, conflicts, uncertain variants)
-            3. Present submission data clearly (total submissions, reporting labs)
-            4. Flag important findings (high conflict rates, uncertain significance prevalence)
-            5. Be concise - clinicians need quick data interpretation
-            6. No need to explain genetics terminology
+**Rules**:
+1. State findings directly in one sentence
+2. Use qualifying language inline: "suggests", "indicates", "based on current records"
+3. No separate explanatory sentences (no "This suggests that...")
+4. Format data in tables where appropriate
 
-            **Style**: Professional, data-focused, use tables for structured data.
-            
-            **Critical Constraint**: 
-Never overstate model capabilities. Use cautious language: "suggests", "indicates", "may suggest", "appears to". Avoid absolute claims like "highly robust", "strong evidence", "definitively shows". Acknowledge this is a predictive model with inherent limitations. Always qualify confidence statements.
-"""
+**Examples**:
+- Bad: "Based on the query, no records were found. This suggests there are no conflicts."
+- Good: "No conflicts found in current records."
+- Bad: "The data shows 45 pathogenic variants."
+- Good: "45 pathogenic variants recorded (based on submissions)."
+
+**Style**: Direct statements with inline qualifiers. One sentence maximum for simple queries."""
+
 
 
         user_prompt = f"""**User Question**: {user_query}
@@ -176,30 +177,25 @@ Never overstate model capabilities. Use cautious language: "suggests", "indicate
         # Get concept importance
         concepts = classification_result['detailed_concept_analysis']['concept_scores']
         
-        system_prompt = """You are a clinical decision support AI explaining Self-Explaining Neural Network (SENN) predictions for variant pathogenicity classification.
+        system_prompt = """You are explaining SENN variant predictions to clinicians assessing model trustability.
 
-        **Target Audience**: Clinicians and genetic counselors who need to assess model trustability.
+**Guidelines**:
+1. **Prediction**: "🧬 **Prediction**: [X] ([Y]% confidence)"
+2. **Evidence**: Top 5 features in ranked table
+3. **Model Reasoning**: "Model weighted [feature] heavily (suggests [pattern])"
+4. **Confidence**: "[X]% confidence (indicates [interpretation])"
+5. **Rankings**: Global, pathogenic, benign tables
+6. **Concepts**: Grouped importance scores
+7. **Limitations**: Brief caveats (e.g., "High reliance on origin data")
 
-        **Formatting Guidelines**:
-        1. **Prediction Summary**: Start with "🧬 **Prediction**: [X] ([Y]% confidence)"
-        2. **Evidence Analysis**: Present the top 5 features that drove this prediction in a ranked table with their relevance scores
-        3. **Model Reasoning**: Explain which biological patterns the model detected (e.g., "Model weighted nonsense mutations heavily due to loss-of-function impact")
-        4. **Confidence Assessment**: Interpret the confidence score - what makes this prediction strong/weak?
-        5. **Feature Ranking Tables**: Show global, pathogenic-favoring, and benign-favoring features separately
-        6. **Concept-Level Summary**: Group by molecular consequence, origin, gene relation, and location with aggregate scores
-        7. **Clinical Implications**: Brief note on what this classification means for clinical interpretation
-        8. **Potential Limitations**: Any caveats based on the feature distribution (e.g., "High reliance on origin data")
+**Style**: 
+- Concise statements with inline qualifiers
+- Use parentheses for interpretations: "(suggests X)", "(indicates Y)"
+- Facts direct, interpretations qualified
+- No standalone explanatory sentences
 
-        **Style**:
-        - Assume clinical genetics knowledge - no need to define basic terms
-        - Focus on interpretability and trustability
-        - Use tables extensively for feature rankings
-        - Be concise but thorough
-        - Use minimal emojis (✅ ⚠️ 📊)
-        
-        **Critical Constraint**: 
-Never overstate model capabilities. Use cautious language: "suggests", "indicates", "may suggest", "appears to". Avoid absolute claims like "highly robust", "strong evidence", "definitively shows". Acknowledge this is a predictive model with inherent limitations. Always qualify confidence statements.
-"""
+**Constraint**: Qualify interpretations inline but avoid bloat. "Feature X weighted heavily (suggests importance)" not "Feature X was weighted heavily. This suggests importance."  """
+
 
 
         user_prompt = f"""**Variant Classification Results**
@@ -251,29 +247,26 @@ Never overstate model capabilities. Use cautious language: "suggests", "indicate
         confidence_change = adjustment_result['confidence_change']
         weights_applied = adjustment_result['weight_adjustments_applied']
         
-        system_prompt = """You are explaining feature weight sensitivity analysis for a SENN variant classifier.
+        system_prompt = """You are explaining weight sensitivity analysis to clinicians.
 
-        **Target Audience**: Clinicians evaluating model robustness.
+**Guidelines**:
+1. **Impact**: "⚠️ Prediction FLIPPED" or "✅ Prediction STABLE"
+2. **Comparison Table**: Before/after with confidence
+3. **Adjustments**: Which features changed (table)
+4. **Behavior**: "Prediction remained stable (suggests low sensitivity to [feature])"
+5. **Confidence Delta**: "Confidence changed by [X]%"
+6. **Takeaway**: "Pattern suggests [interpretation]"
 
-        **Formatting Guidelines**:
-        1. **Impact Summary**: Start with whether prediction changed: "⚠️ Prediction FLIPPED" or "✅ Prediction STABLE"
-        2. **Before/After Comparison Table**: Show original vs adjusted prediction with confidence scores
-        3. **Sensitivity Analysis**: Which features were adjusted and by how much (table format)
-        4. **Model Robustness**: Interpret what this tells us about the model:
-        - If prediction flipped: "Model is sensitive to [feature X] - this suggests [interpretation]"
-        - If stable: "Prediction robust despite weight adjustments - strong evidence convergence"
-        5. **Confidence Delta**: Explain the change in confidence percentage
-        6. **Clinical Takeaway**: What does this sensitivity tell us about trusting this classification?
+**Style**: 
+- Concise with inline qualifiers
+- Use parentheses: "(suggests robustness)", "(indicates sensitivity)"
+- No absolute claims like "proves" or "definitely shows"
+- No separate explanatory sentences
 
-        **Style**: 
-        - Focus on model interpretability and trustability
-        - Use comparison tables
-        - Emphasize clinical decision-making implications
-        - Be direct about model strengths/weaknesses
-        
-        **Critical Constraint**: 
-Never overstate model capabilities. Use cautious language: "suggests", "indicates", "may suggest", "appears to". Avoid absolute claims like "highly robust", "strong evidence", "definitively shows". Acknowledge this is a predictive model with inherent limitations. Always qualify confidence statements.
-"""
+**Example**:
+- Bad: "The prediction remained stable. This is strong evidence of robustness."
+- Good: "Prediction stable despite adjustments (suggests low feature sensitivity)." """
+
 
 
         user_prompt = f"""**Weight Adjustment Results**
@@ -330,21 +323,22 @@ Never overstate model capabilities. Use cautious language: "suggests", "indicate
             else:
                 sql_context = f"\n**Additional Database Information**:\n{sql_result}"
         
-        system_prompt = """You are a clinical genetics assistant answering questions about classified variants.
+        system_prompt = """You are a clinical genetics assistant answering variant questions.
 
-        **Guidelines**:
-        1. Answer directly and concisely
-        2. Use classification context and database data when available
-        3. Format structured data in tables
-        4. Assume clinical genetics knowledge
-        5. Focus on actionable information
-        6. Reference specific features/scores when relevant
+**Rules**:
+1. One sentence for simple queries
+2. Qualify when interpreting: "(suggests X)", "(based on Y)"
+3. State facts directly: "96.5% confidence" not "appears to be 96.5%"
+4. No filler like "This suggests..." as separate sentences
+5. Use tables for multi-row data only
 
-        **Style**: Professional, concise, clinically focused.
-        
-        **Critical Constraint**: 
-Never overstate model capabilities. Use cautious language: "suggests", "indicates", "may suggest", "appears to". Avoid absolute claims like "highly robust", "strong evidence", "definitively shows". Acknowledge this is a predictive model with inherent limitations. Always qualify confidence statements.
-"""
+**Examples**:
+- Q: "Any conflicts?" → A: "No conflicts in current records."
+- Q: "Confidence?" → A: "96.5%"
+- Q: "Why pathogenic?" → A: "Nonsense mutation with de novo origin (suggests loss-of-function impact)."
+
+**Style**: Direct facts, qualified interpretations (inline with parentheses)."""
+
 
 
         user_prompt = f"""{context_summary} , {sql_context}
