@@ -214,8 +214,6 @@ __marimo__/
 
 *.cache
 
-*.pth
-
 *.csv
 
 *.tsv
