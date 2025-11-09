@@ -165,39 +165,39 @@ def reset_sliders_handler():
     return [1.0] * len(all_features)  # Return list of 1.0 values
 
 
-# ===== TAB 2: FOLLOW-UP QUERY HANDLER (STREAMING) =====
-def followup_query_handler(query, allele_context):
-    """Handler for follow-up queries with streaming"""
+# # ===== TAB 2: FOLLOW-UP QUERY HANDLER (STREAMING) =====
+# def followup_query_handler(query, allele_context):
+#     """Handler for follow-up queries with streaming"""
     
-    if not query.strip():
-        yield "⚠️ Please enter a question"
-        return
+#     if not query.strip():
+#         yield "⚠️ Please enter a question"
+#         return
     
-    if not allele_context:
-        yield "⚠️ No variant context. Please classify a variant first."
-        return
+#     if not allele_context:
+#         yield "⚠️ No variant context. Please classify a variant first."
+#         return
     
-    try:
-        # Check if query needs SQL lookup
-        sql_result = None
-        keywords = ['gene', 'disease', 'submission', 'allele', 'variant', 'chromosome']
+#     try:
+#         # Check if query needs SQL lookup
+#         sql_result = None
+#         keywords = ['gene', 'disease', 'submission', 'allele', 'variant', 'chromosome']
         
-        if any(keyword in query.lower() for keyword in keywords):
-            allele_id = allele_context['input_metadata']['allele_id']
-            gene_id = allele_context['input_metadata']['gene_id']
+#         if any(keyword in query.lower() for keyword in keywords):
+#             allele_id = allele_context['input_metadata']['allele_id']
+#             gene_id = allele_context['input_metadata']['gene_id']
             
-            # Enhance query with context
-            enhanced_query = f"{query} (AlleleID: {allele_id}, GeneID: {gene_id})"
-            sql_result = sql_agent.run(enhanced_query)
+#             # Enhance query with context
+#             enhanced_query = f"{query} (AlleleID: {allele_id}, GeneID: {gene_id})"
+#             sql_result = sql_agent.run(enhanced_query)
         
-        # Stream answer
-        full_response = ""
-        for chunk in llm_formatter.answer_followup_stream(query, sql_result):
-            full_response += chunk
-            yield full_response
+#         # Stream answer
+#         full_response = ""
+#         for chunk in llm_formatter.answer_followup_stream(query, sql_result):
+#             full_response += chunk
+#             yield full_response
     
-    except Exception as e:
-        yield f"❌ Error: {str(e)}"
+#     except Exception as e:
+#         yield f"❌ Error: {str(e)}"
 
 
 # ===== TAB 3: BATCH HANDLER =====
@@ -433,15 +433,15 @@ with gr.Blocks(title="Variant Classification System", theme=gr.themes.Glass()) a
                     reclassify_btn = gr.Button("🔄 Reclassify", variant="primary")
             
             # Follow-up Query Section
-            gr.Markdown("---")
-            gr.Markdown("### 💬 Ask About This Variant")
+            # gr.Markdown("---")
+            # gr.Markdown("### 💬 Ask About This Variant")
             
-            followup_input = gr.Textbox(
-                label="Your Question",
-                placeholder="e.g., Why is this variant pathogenic? What gene is this in?"
-            )
-            followup_btn = gr.Button("Ask", variant="primary")
-            followup_output = gr.Markdown(label="Answer")
+            # followup_input = gr.Textbox(
+            #     label="Your Question",
+            #     placeholder="e.g., Why is this variant pathogenic? What gene is this in?"
+            # )
+            # followup_btn = gr.Button("Ask", variant="primary")
+            # followup_output = gr.Markdown(label="Answer")
             
             # Hidden State (stores current allele context)
             allele_context = gr.State(None)
@@ -469,19 +469,19 @@ with gr.Blocks(title="Variant Classification System", theme=gr.themes.Glass()) a
                 outputs=[result_display]
             )
             
-            # Event: Follow-up query (button)
-            followup_btn.click(
-                fn=followup_query_handler,
-                inputs=[followup_input, allele_context],
-                outputs=[followup_output]
-            )
+            # # Event: Follow-up query (button)
+            # followup_btn.click(
+            #     fn=followup_query_handler,
+            #     inputs=[followup_input, allele_context],
+            #     outputs=[followup_output]
+            # )
             
-            # Event: Follow-up query (enter key)
-            followup_input.submit(
-                fn=followup_query_handler,
-                inputs=[followup_input, allele_context],
-                outputs=[followup_output]
-            )
+            # # Event: Follow-up query (enter key)
+            # followup_input.submit(
+            #     fn=followup_query_handler,
+            #     inputs=[followup_input, allele_context],
+            #     outputs=[followup_output]
+            # )
         
         # ===== TAB 3: BATCH CLASSIFICATION =====
         with gr.Tab("Batch Classification"):
