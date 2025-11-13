@@ -14,10 +14,6 @@ This project aims to provide pathogenicity classification for a given allele and
 ### SQL Agent
 A natural language to SQL query system that processes user questions and returns database query results.
 
-> [!WARNING]
->check : You can create a view and update that view and that can modify the db. check this
-
-
 **Features:**
 - **Relevance Checker**: Determines if the natural language request is relevant to the database schema
 - **Fuzzy matcher**: To catch any misspelling 
@@ -100,7 +96,8 @@ An interpretable machine learning model for allele pathogenicity classification 
     - [ ] Potential addons would be to flush out the prompts through testing
     - [ ] Need to add more examples to make it more robust at handling a wide variety of queries.
 
-# FUZZY MATCH FOR DISEASE IS ; SEPARATED CHANGE THAT . IMPORTANT 
+# Changes to be made : 
+- FUZZY MATCH FOR DISEASE IS ; SEPARATED CHANGE THAT . IMPORTANT 
 
 [FUZZY MATCH] Original: any conflicts where  disease is galloway ?
 [FUZZY MATCH] Extracted terms: ['galloway']
