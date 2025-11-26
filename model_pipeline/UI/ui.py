@@ -451,7 +451,7 @@ with gr.Blocks(title="Variant Classification System", theme=gr.themes.Glass()) a
             # Event: Classify button
             classify_btn.click(
             fn=classify_handler,
-            inputs=[allele_ID_input, gene_ID_input, mc_dd, origin_dd, var_gene_reln_dd, gen_loc_data],
+            inputs=[allele_ID_input, gene_ID_input, mc_dd, origin_dd, var_gene_reln_dd, gen_loc_data], # 
             outputs=[result_display, slider_section, allele_context],
             show_progress="full"  
             )

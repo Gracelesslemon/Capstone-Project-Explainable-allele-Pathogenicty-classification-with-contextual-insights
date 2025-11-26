@@ -196,7 +196,8 @@ class SQLAgent:
         if provider == "gemini":
             return ChatGoogleGenerativeAI(
                 model=os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash"),
-                google_api_key=os.getenv("GEMINI_KEY")
+                google_api_key=os.getenv("GEMINI_KEY"),
+                timeout = 30
             )
         elif provider == "perplexity":
             return ChatOpenAI(
@@ -257,6 +258,7 @@ class SQLAgent:
         Schema:
         {schema}
         Extra information :  
+        -  respond 'relevant' if the question mentions or refers to an organization name (e.g., “Athena Diagnostics”) or anything that clearly sounds like an organization.
         - The database only houses germline.
         - The database only houses SNP's
         - allele table has 2 columns that each house multiple id's. this a comphrehensive list of that : PhenotypeIDS: ['EFO', 'Gene', 'Human Phenotype Ontology', 'MONDO', 'MeSH', 'MedGen', 'OMIM', 'Orphanet']
