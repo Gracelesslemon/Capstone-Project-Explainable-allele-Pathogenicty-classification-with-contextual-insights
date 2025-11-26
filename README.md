@@ -96,10 +96,12 @@ An interpretable machine learning model for allele pathogenicity classification 
     - [ ] Potential addons would be to flush out the prompts through testing
     - [ ] Need to add more examples to make it more robust at handling a wide variety of queries.
 
-# Changes to be made : 
-- FUZZY MATCH FOR DISEASE IS ; SEPARATED CHANGE THAT . IMPORTANT 
-
+# To be Done:
+- [ ] FUZZY MATCH FOR DISEASE IS ;. code doesnt check this 
+```
 [FUZZY MATCH] Original: any conflicts where  disease is galloway ?
 [FUZZY MATCH] Extracted terms: ['galloway']
 [FUZZY MATCH] Modified: any conflicts where  disease is Galloway-Mowat syndrome 8;Nephrotic syndrome, type 18 ?
 [FUZZY MATCH] Replacements: [('galloway', 'Galloway-Mowat syndrome 8;Nephrotic syndrome, type 18')]
+```
+- [ ] Features shown for patho and benign after predictions are general. Should limit it to the input variants features for better clarity. 
