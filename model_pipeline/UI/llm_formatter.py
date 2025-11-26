@@ -171,8 +171,35 @@ class LLMFormatter:
         
         # Get rankings
         top_global = classification_result['feature_rankings']['global_ranking'][:5]
-        top_pathogenic = classification_result['feature_rankings']['pathogenic_ranking'][:5]
-        top_benign = classification_result['feature_rankings']['benign_ranking'][:5]
+        # top_pathogenic = classification_result['feature_rankings']['pathogenic_ranking'][:5]
+        # top_benign = classification_result['feature_rankings']['benign_ranking'][:5]
+
+        # Extract rankings
+        patho_ranking = classification_result['feature_rankings']['pathogenic_ranking']
+        benign_ranking = classification_result['feature_rankings']['benign_ranking']
+
+        # Sort by score descending for pathogenic positive contributions
+        patho_positive = sorted([f for f in patho_ranking if f['score'] > 0],
+                                key=lambda x: x['score'], reverse=True)[:5]
+        # Sort by score ascending for pathogenic negative contributions (against pathogenic)
+        patho_negative = sorted([f for f in patho_ranking if f['score'] < 0],
+                                key=lambda x: x['score'])[:5]  # most negative
+
+        # Same for benign
+        benign_positive = sorted([f for f in benign_ranking if f['score'] > 0],
+                                key=lambda x: x['score'], reverse=True)[:5]
+
+        benign_negative = sorted([f for f in benign_ranking if f['score'] < 0],
+                                key=lambda x: x['score'])[:5]
+
+        def abs_score_features(feature_list):
+            return [{'feature': f['feature'], 'score': abs(f['score'])} for f in feature_list]
+
+        top_pathogenic_support = abs_score_features(patho_positive)
+        top_pathogenic_against = abs_score_features(patho_negative)
+        top_benign_support = abs_score_features(benign_positive)
+        top_benign_against = abs_score_features(benign_negative)
+
         # patho = [f for f in classification_result['feature_rankings']['pathogenic_ranking'] if f['score'] > 0]
         # benign = [f for f in classification_result['feature_rankings']['benign_ranking'] if f['score'] > 0]
 
@@ -210,11 +237,18 @@ class LLMFormatter:
                     **Top 5 Global Features**:
                     {json.dumps(top_global, indent=2)}
 
-                    **Top 5 Pathogenic Features**:
-                    {json.dumps(top_pathogenic, indent=2)}
+                    **Top Pathogenic Supporting Features**:
+                    {json.dumps(top_pathogenic_support, indent=2)}
 
-                    **Top 5 Benign Features**:
-                    {json.dumps(top_benign, indent=2)}
+                    **Top Pathogenic Opposing Features**:
+                    {json.dumps(top_pathogenic_against, indent=2)}
+
+                    **Top Benign Supporting Features**:
+                    {json.dumps(top_benign_support, indent=2)}
+
+                    **Top Benign Opposing Features**:
+                    {json.dumps(top_benign_against, indent=2)}
+
 
                     **Concept-Level Importance**:
                     {json.dumps(concepts, indent=2)}
