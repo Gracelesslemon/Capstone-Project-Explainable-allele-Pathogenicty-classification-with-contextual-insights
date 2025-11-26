@@ -1,6 +1,6 @@
 import sys
 import os
-
+import pandas as pd  
 # Add model_pipeline directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -113,7 +113,55 @@ def classify_handler(allele_id, gene_id, mc_list, origin_list, var_gene_rel, gen
         error_msg = f"❌ Error: {str(e)}"
         return error_msg, gr.update(visible=False), None
 
+# ===== TAB 2: EXPORT HANDLER =====
+def export_relevance_handler(allele_context):
+    """Generates a CSV file for feature relevance with Global, Pathogenic, and Benign scores"""
+    if not allele_context:
+        return None
+    
+    try:
+        # Create output directory
+        os.makedirs("outputs", exist_ok=True)
+        
+        # Safe filename generation
+        allele_id = allele_context.get('input_metadata', {}).get('allele_id', 'variant')
+        file_path = f"outputs/feature_relevance_{allele_id}.csv"
+        
+        # 1. Get the dictionary containing the scores
+        # Based on your logs, the data is in allele_context['feature_importance']
+        feature_importance_data = allele_context.get('feature_importance', {})
+        
+        data = []
+        
+        # 2. Iterate through the dictionary to build rows
+        for feature_name, scores in feature_importance_data.items():
+            # Clean up feature name for readability (optional, remove if you want raw names)
+            # readable_name = feature_name.replace('has_MC_', '').replace('has_Origin_', '').replace('is_', '')
+            
+            row = {
+                "Feature Name": feature_name,
+                "Global Importance": scores.get('global', 0.0),
+                "Pathogenic Score": scores.get('Pathogenic', 0.0),
+                "Benign Score": scores.get('Benign', 0.0)
+            }
+            data.append(row)
 
+        # 3. Create DataFrame
+        df = pd.DataFrame(data)
+        
+        # 4. Sort by Global Importance (Descending) to show most important first
+        if not df.empty:
+            df = df.sort_values(by='Global Importance', ascending=False)
+            
+        # 5. Save to CSV
+        df.to_csv(file_path, index=False)
+        print(f"✅ Exported relevance to {file_path}")
+        
+        return gr.update(value=file_path, visible=True)
+        
+    except Exception as e:
+        print(f"❌ Export Error: {str(e)}")
+        return None
 
 # ===== TAB 2: WEIGHT ADJUSTMENT HANDLER (STREAMING) =====
 def reclassify_handler(allele_context, *slider_values):
@@ -375,6 +423,14 @@ with gr.Blocks(title="Variant Classification System", theme=gr.themes.Glass()) a
             
             classify_btn = gr.Button("🔬 Classify Variant", variant="primary", size="lg")
             
+            with gr.Row():
+                with gr.Column(scale=4):
+                    pass # Empty space to push button to the right
+                with gr.Column(scale=1, min_width=200):
+                    export_btn = gr.Button("📥 Download Relevance (.xlsx)", size="sm", variant="secondary")
+                    # Hidden file component to facilitate the download
+                    export_file = gr.File(label="Download Completed", visible=False, file_count="single")
+
             # Result Display
             result_display = gr.Markdown(label="Classification Result")
             
@@ -455,7 +511,13 @@ with gr.Blocks(title="Variant Classification System", theme=gr.themes.Glass()) a
             outputs=[result_display, slider_section, allele_context],
             show_progress="full"  
             )
-            
+
+            export_btn.click(
+                fn=export_relevance_handler,
+                inputs=[allele_context],
+                outputs=[export_file]
+            )
+
             # Event: Reset sliders
             reset_btn.click(
                 fn=reset_sliders_handler,
