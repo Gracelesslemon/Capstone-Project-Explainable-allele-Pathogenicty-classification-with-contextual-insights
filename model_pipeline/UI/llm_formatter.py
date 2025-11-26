@@ -173,6 +173,11 @@ class LLMFormatter:
         top_global = classification_result['feature_rankings']['global_ranking'][:5]
         top_pathogenic = classification_result['feature_rankings']['pathogenic_ranking'][:5]
         top_benign = classification_result['feature_rankings']['benign_ranking'][:5]
+        # patho = [f for f in classification_result['feature_rankings']['pathogenic_ranking'] if f['score'] > 0]
+        # benign = [f for f in classification_result['feature_rankings']['benign_ranking'] if f['score'] > 0]
+
+        # top_pathogenic = patho[:5]
+        # top_benign = benign[:5]
         
         # Get concept importance
         concepts = classification_result['detailed_concept_analysis']['concept_scores']
