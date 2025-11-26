@@ -180,13 +180,11 @@ class LLMFormatter:
         system_prompt = """You are explaining SENN variant predictions to clinicians assessing model trustability.
 
 **Guidelines**:
-1. **Prediction**: "🧬 **Prediction**: [X] ([Y]% confidence)"
+1. **Prediction**: "🧬 **Prediction**: [X] ([Y]% Prediction Probability)"
 2. **Evidence**: Top 5 features in ranked table
 3. **Model Reasoning**: "Model weighted [feature] heavily (suggests [pattern])"
-4. **Confidence**: "[X]% confidence (indicates [interpretation])"
-5. **Rankings**: Global, pathogenic, benign tables
-6. **Concepts**: Grouped importance scores
-7. **Limitations**: Brief caveats (e.g., "High reliance on origin data")
+4. **Rankings**: Global, pathogenic, benign tables
+5. **Concepts**: Grouped importance scores
 
 **Style**: 
 - Concise statements with inline qualifiers
