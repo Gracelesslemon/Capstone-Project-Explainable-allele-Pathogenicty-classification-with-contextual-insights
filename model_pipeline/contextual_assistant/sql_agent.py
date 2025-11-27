@@ -498,15 +498,37 @@ class SQLAgent:
 
         return state
 
+
     @traceable
     def execute_sql(self, state: AgentState):
-        """Executes the generated SQL query on the DuckDB connection."""
+        """Executes the generated SQL query on the DuckDB connection with a row limit enforcement."""
+        MAX_ROWS_LIMIT = 5
         sql_query = state["sql_query"]
+        
+        # query limiter
+        lower_query = sql_query.lower().strip()
+
+        # 1. Check if it's a SELECT query
+        if lower_query.startswith("select"):
+            
+            # 2. Check if a LIMIT clause already exists
+            if " limit " not in lower_query:
+                # 3. Append the LIMIT clause to the original query
+                # We must update the state variable for the execution later
+                state["sql_query"] = f"{sql_query.rstrip()} LIMIT {MAX_ROWS_LIMIT}"
+        
+        # Use the potentially modified query for execution
+        limited_sql_query = state["sql_query"]
+        # ----------------------------------------------------------------
+        
         try:
-            result = self.conn.execute(sql_query)
-            if sql_query.lower().startswith("select"):
+            # Execute the (now limited) query
+            result = self.conn.execute(limited_sql_query)
+            
+            if limited_sql_query.lower().startswith("select"):
                 rows = result.fetchall()
                 columns = [desc[0] for desc in result.description]
+                
                 if rows:
                     state["query_rows"] = [dict(zip(columns, row)) for row in rows]
                     formatted = "\n".join([str(dict(zip(columns, row))) for row in rows])
@@ -514,10 +536,13 @@ class SQLAgent:
                 else:
                     state["query_rows"] = []
                     state["query_result"] = "No results found."
+                
                 state["sql_error"] = False
+                
         except Exception as e:
             state["query_result"] = f"Error executing SQL query: {str(e)}"
             state["sql_error"] = True
+            
         return state
 
     @traceable
@@ -681,4 +706,4 @@ USAGE :
 from sql_agent import SQLAgent
 agent = SQLAgent() or agent = SQLAgent(db_path="/custom/path/to/db.duckdb", llm_provider="gemini")
 result = agent.run("Show me pathogenic variants")
-agent.close()'''
+agent.close()''' 
