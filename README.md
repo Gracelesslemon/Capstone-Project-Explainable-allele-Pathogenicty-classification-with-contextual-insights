@@ -104,4 +104,7 @@ An interpretable machine learning model for allele pathogenicity classification 
 [FUZZY MATCH] Modified: any conflicts where  disease is Galloway-Mowat syndrome 8;Nephrotic syndrome, type 18 ?
 [FUZZY MATCH] Replacements: [('galloway', 'Galloway-Mowat syndrome 8;Nephrotic syndrome, type 18')]
 ```
-- [ ] Features shown for patho and benign after predictions are general. Should limit it to the input variants features for better clarity. 
+- [ ] Features shown for patho and benign after predictions are general. Should limit it to the input variants features for better clarity.
+- [ ] context/memory in sql agent
+- [ ] limiter as to how much the sql agent can take. 
+- [ ] ability to terminate a query if it takes to long. 
